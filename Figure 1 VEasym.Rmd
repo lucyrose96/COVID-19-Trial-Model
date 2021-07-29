@@ -1,0 +1,403 @@
+---
+title: "Figure 1: VEasym"
+output: html_document
+---
+
+
+```{r packages}
+library(ggplot2)
+library(grid)
+library(ggimage)
+library(RColorBrewer)
+library(foreach)
+library(doParallel)
+library(dplyr)
+```
+
+```{r setup for parallel processing}
+numCores <- detectCores()#number of cores that my computer has
+numCores
+registerDoParallel(numCores) # use multicore, set to the number of my cores
+```
+
+
+**70% efficacy (e.g. AZ)**
+
+```{r VE asymptomatic 70% setup}
+
+nsim=1000
+pa_vec<- seq(0.1,1, 0.1) #proportion asymptomatic
+pa_num<- length(pa_vec)
+VEsym=0.7
+VEin_vec<-seq(0,0.7,0.1) #sequence of VEins
+VEdi_vec<- 1-((1-VEsym)/(1-VEin_vec))#ditto but opposite for VEpr
+ve_array<-data.frame(VEin_vec, VEdi_vec)#align combinations that give VEsym = 0.70
+ve_num<- nrow(ve_array)
+
+#Set rows and cols
+nrows<-nsim*pa_num*ve_num
+ncols<-length(colnam)
+
+#Set table of values for model to run with
+setup_sim<-as.data.frame(array(NA, dim = c(nrows, ncols)))
+colnames(setup_sim)<-colnam
+setup_sim$pa<-rep(pa_vec, each =  nsim*ve_num)
+setup_sim$VEin<-rep(rep(VEin_vec, each =  nsim), pa_num)
+setup_sim$VEdi<-rep(rep(VEdi_vec, each =  nsim), pa_num)
+
+#Run model usign parallel processing
+system.time(simres_f2<-foreach(i = 1:nrow(setup_sim), .combine=rbind, .packages = "rateratio.test")%dopar%{
+  model_run(VEin = setup_sim$VEin[i], VEdi = setup_sim$VEdi[i], pa = setup_sim$pa[i], timeintervals.end=c( 183, 365, 730), timeintervals.start=c(0, 183, 365), Lam = 0.1/365)[[2]]
+})
+beep()
+colnames(simres_f2)<-colnam
+rownames(simres_f2)<-c()
+
+#separate the results to the time intervals
+sim_res_m6_fig2<-as.data.frame(simres_f2[seq(1,nrow(simres_f2),3),])
+sim_res_m12_fig2<-as.data.frame(simres_f2[seq(2,nrow(simres_f2),3),])
+sim_res_m24_fig2<-as.data.frame(simres_f2[seq(3,nrow(simres_f2),3),])
+#add the parameter values in the right row order
+sim_res_m6_fig2<-cbind(setup_sim$pa, setup_sim$VEin, setup_sim$VEdi, sim_res_m6_fig2)
+sim_res_m12_fig2<-cbind(setup_sim$pa, setup_sim$VEin, setup_sim$VEdi, sim_res_m12_fig2)
+sim_res_m24_fig2<-cbind(setup_sim$pa, setup_sim$VEin, setup_sim$VEdi, sim_res_m24_fig2)
+#add col names
+colnames(sim_res_m6_fig2)<-c( "pa", "VEin", "VEdi", colnam)
+colnames(sim_res_m12_fig2)<-c( "pa", "VEin", "VEdi", colnam)
+colnames(sim_res_m24_fig2)<-c( "pa", "VEin", "VEdi", colnam)
+#add VE_asym eqn to all datasets
+sim_res_m6_fig2$VEasym<-sim_res_m12_fig2$VEasym<-sim_res_m24_fig2$VEasym<-1-((1-sim_res_m24_fig2$VEin)-(1-sim_res_m24_fig2$pa )*(1-sim_res_m24_fig2$VEin)*(1-sim_res_m24_fig2$VEdi))/sim_res_m24_fig2$pa 
+beep()
+
+```
+
+```{r save data}
+#write.csv(sim_res_m6_fig1, "sim_res_m6_fig1.csv", row.names = FALSE)
+#write.csv(sim_res_m12_fig1, "sim_res_m12_fig1.csv", row.names = FALSE)
+#write.csv(sim_res_m24_fig1, "sim_res_m24_fig1.csv", row.names = FALSE)
+```
+
+```{r VE asymptomatic summarise 70% , include=FALSE}
+figure_dat_fig2_m6<- sim_res_m6_fig2%>%
+  group_by(VEin, pa)%>%
+  summarise(
+    #asym
+    mean_VEasym.inc = mean(`VE asym IRR s-ve (first case)`)*100,
+    lci_VEasym.inc=quantile(`VE asym IRR s-ve (first case)`, 0.025)*100,
+    uci_VEasym.inc=quantile(`VE asym IRR s-ve (first case)`, 0.975)*100,
+    mean_VEasym.inc2 = mean(`VE asym IRR s-ve (first case) 2`)*100,
+    lci_VEasym.inc2=quantile(`VE asym IRR s-ve (first case) 2`, 0.025)*100,
+    uci_VEasym.inc2=quantile(`VE asym IRR s-ve (first case) 2`, 0.975)*100,
+    mean_VEasym.prop = mean(`VE asym RR s-ve`)*100,
+    lci_VEasym.prop=quantile(`VE asym RR s-ve`, 0.025)*100,
+    uci_VEasym.prop=quantile(`VE asym RR s-ve`, 0.975)*100,
+    #inf
+    mean_VEinf.inc = mean(`VE inf IRR s-ve (first case)`)*100,
+    lci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.025)*100,
+    uci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.975)*100,
+    mean_VEinf.prop = mean(`VE inf RR s-ve`)*100,
+    lci_VEinf.prop=quantile(`VE inf RR s-ve`, 0.025)*100,
+    uci_VEinf.prop=quantile(`VE inf RR s-ve`, 0.975)*100,
+    #equation
+    VEasym = mean(VEasym)*100
+  )
+figure_dat_fig2_m12<- sim_res_m12_fig2%>%
+  group_by(VEin, pa)%>%
+  summarise(
+    #asym
+    mean_VEasym.inc = mean(`VE asym IRR s-ve (first case)`)*100,
+    lci_VEasym.inc=quantile(`VE asym IRR s-ve (first case)`, 0.025)*100,
+    uci_VEasym.inc=quantile(`VE asym IRR s-ve (first case)`, 0.975)*100,
+    mean_VEasym.inc2 = mean(`VE asym IRR s-ve (first case) 2`)*100,
+    lci_VEasym.inc2=quantile(`VE asym IRR s-ve (first case) 2`, 0.025)*100,
+    uci_VEasym.inc2=quantile(`VE asym IRR s-ve (first case) 2`, 0.975)*100,
+    mean_VEasym.prop = mean(`VE asym RR s-ve`)*100,
+    lci_VEasym.prop=quantile(`VE asym RR s-ve`, 0.025)*100,
+    uci_VEasym.prop=quantile(`VE asym RR s-ve`, 0.975)*100,
+    #inf
+    mean_VEinf.inc = mean(`VE inf IRR s-ve (first case)`)*100,
+    lci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.025)*100,
+    uci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.975)*100,
+    mean_VEinf.prop = mean(`VE inf RR s-ve`)*100,
+    lci_VEinf.prop=quantile(`VE inf RR s-ve`, 0.025)*100,
+    uci_VEinf.prop=quantile(`VE inf RR s-ve`, 0.975)*100,
+    #equation
+    VEasym = mean(VEasym)*100
+  )
+figure_dat_fig2_m24<- sim_res_m24_fig2%>%
+  group_by(VEin, pa)%>%
+  summarise(
+    #asym
+    mean_VEasym.inc = mean(`VE asym IRR s-ve (first case)`)*100,
+    lci_VEasym.inc=quantile(`VE asym IRR s-ve (first case)`, 0.025)*100,
+    uci_VEasym.inc=quantile(`VE asym IRR s-ve (first case)`, 0.975)*100,
+    mean_VEasym.inc2 = mean(`VE asym IRR s-ve (first case) 2`)*100,
+    lci_VEasym.inc2=quantile(`VE asym IRR s-ve (first case) 2`, 0.025)*100,
+    uci_VEasym.inc2=quantile(`VE asym IRR s-ve (first case) 2`, 0.975)*100,
+    mean_VEasym.prop = mean(`VE asym RR s-ve`)*100,
+    lci_VEasym.prop=quantile(`VE asym RR s-ve`, 0.025)*100,
+    uci_VEasym.prop=quantile(`VE asym RR s-ve`, 0.975)*100,
+    #inf
+    mean_VEinf.inc = mean(`VE inf IRR s-ve (first case)`)*100,
+    lci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.025)*100,
+    uci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.975)*100,
+    mean_VEinf.prop = mean(`VE inf RR s-ve`)*100,
+    lci_VEinf.prop=quantile(`VE inf RR s-ve`, 0.025)*100,
+    uci_VEinf.prop=quantile(`VE inf RR s-ve`, 0.975)*100,
+    #equation
+    VEasym = mean(VEasym)*100
+  )
+#setup for figures - convert to factors 
+figure_dat_fig2_m6$VEin<- as.factor(figure_dat_fig2_m6$VEin)
+figure_dat_fig2_m12$VEin<- as.factor(figure_dat_fig2_m12$VEin)
+figure_dat_fig2_m24$VEin<- as.factor(figure_dat_fig2_m24$VEin)
+
+#add proportion symptomatic column
+figure_dat_fig2_m6$ps<-(1-figure_dat_fig2_m6$pa)
+figure_dat_fig2_m12$ps<-(1-figure_dat_fig2_m12$pa)
+figure_dat_fig2_m24$ps<-(1-figure_dat_fig2_m24$pa)
+```
+
+```{r smooth line for eqn 70}
+pa<-seq(0.001,1, 0.001)
+VEin70<-0.7
+VEin60<-0.6
+VEin50<-0.5
+VEin40<-0.4
+VEin30<-0.3
+VEin20<-0.2
+VEin10<-0.1
+VEin00<-0.0
+VEdi70<-0.0
+VEdi60<-0.25
+VEdi50<-0.4
+VEdi40<-0.5
+VEdi30<-0.5714286	
+VEdi20<-0.6250000
+VEdi10<-0.6666667	
+VEdi00<-0.7
+VEasym_eqn<- 1-((1-VEin70)-(1-pa)*(1-VEin70)*(1-VEdi70))/pa
+data70<- data.frame(pa, VEasym_eqn)
+data70$ve<-rep(0.7, nrow(data70))
+
+VEasym_eqn<- 1-((1-VEin60)-(1-pa)*(1-VEin60)*(1-VEdi60))/pa
+data60<- data.frame(pa, VEasym_eqn)
+data60$ve<-rep(0.6, nrow(data60))
+
+VEasym_eqn<- 1-((1-VEin50)-(1-pa)*(1-VEin50)*(1-VEdi50))/pa
+data50<- data.frame(pa, VEasym_eqn)
+data50$ve<-rep(0.5, nrow(data50))
+
+VEasym_eqn<- 1-((1-VEin40)-(1-pa)*(1-VEin40)*(1-VEdi40))/pa
+data40<- data.frame(pa, VEasym_eqn)
+data40$ve<-rep(0.4, nrow(data40))
+
+VEasym_eqn<- 1-((1-VEin30)-(1-pa)*(1-VEin30)*(1-VEdi30))/pa
+data30<- data.frame(pa, VEasym_eqn)
+data30$ve<-rep(0.3, nrow(data30))
+
+VEasym_eqn<- 1-((1-VEin20)-(1-pa)*(1-VEin20)*(1-VEdi20))/pa
+data20<- data.frame(pa, VEasym_eqn)
+data20$ve<-rep(0.2, nrow(data20))
+
+VEasym_eqn<- 1-((1-VEin10)-(1-pa)*(1-VEin10)*(1-VEdi10))/pa
+data10<- data.frame(pa, VEasym_eqn)
+data10$ve<-rep(0.1, nrow(data10))
+
+VEasym_eqn<- 1-((1-VEin00)-(1-pa)*(1-VEin00)*(1-VEdi00))/pa
+data00<- data.frame(pa, VEasym_eqn)
+data00$ve<-rep(0.0, nrow(data00))
+dataasym<-rbind(data70,data60,data50,data40,data30,data20,data10,data00)
+dataasym$ve<- as.factor(dataasym$ve)
+dataasym$VEasym_eqn<-dataasym$VEasym_eqn*100
+dataasym$ps=(1-dataasym$pa)
+```
+
+```{r 70% figure}
+ggplot(figure_dat_fig2_m24, aes(x=ps, y=mean_VEasym.inc2, group = VEin, color = VEin))+
+  geom_point(aes(color = VEin, group = VEin))+
+  geom_errorbar(aes(ymin=lci_VEasym.inc2, ymax=uci_VEasym.inc2), width = 0.01)+
+  theme_classic()+
+  coord_cartesian(y=c(-100,100))+
+  labs(x= "Proportion symptomatic", y = "VE asymptomatic infection (%)")+
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(size=12),
+        axis.text = element_text(size=11))+
+  geom_hline(yintercept = 70, linetype = "dotted")+
+  geom_hline(yintercept = 0, linetype = "dotted")+
+  scale_color_brewer(palette="RdBu", labels = c("0%", "10%","20%","30%","40%","50%","60%","70%"), name = "VE infection")+ 
+  scale_x_continuous(breaks=seq(0,1,0.1), labels = c("0%", "10%","20%","30%","40%","50%","60%","70%", "80%", "90%", "100%"))+ 
+  scale_y_continuous(breaks=seq(-100,100,10), labels = c("-100%", " ", "-80%", " ", "-60%", " ", "-40%", " ", "-20%", " ", "0%", " ","20%"," ","40%"," ","60%"," ", "80%", " ", "100%") )+
+  geom_line(data=dataasym, aes(x=ps, y=VEasym_eqn, group = ve, color = ve))
+```
+**90% efficacy (e.g. Pfizer/Moderna)**
+
+```{r VE asymptomatic 90% setup}
+
+nsim=1000
+pa_vec<- seq(0.1,1, 0.1)
+pa_num<- length(pa_vec)
+VEsym=0.9
+VEin_vec<-seq(0,0.9,0.1) 
+VEdi_vec<- 1-((1-VEsym)/(1-VEin_vec))
+ve_array<-data.frame(VEin_vec, VEdi_vec)
+ve_num<- nrow(ve_array)
+
+#Set rows and cols
+nrows<-nsim*pa_num*ve_num
+ncols<-length(colnam)
+
+#Set table of values for model to run with
+setup_sim<-as.data.frame(array(NA, dim = c(nrows, ncols)))
+colnames(setup_sim)<-colnam
+setup_sim$pa<-rep(pa_vec, each =  nsim*ve_num)
+setup_sim$VEin<-rep(rep(VEin_vec, each =  nsim), pa_num)
+setup_sim$VEdi<-rep(rep(VEdi_vec, each =  nsim), pa_num)
+
+#Run model usign parallel processing
+system.time(simres_f2.1<-foreach(i = 1:nrow(setup_sim), .combine=rbind, .packages = "rateratio.test")%dopar%{
+  model_run(VEin = setup_sim$VEin[i], VEdi = setup_sim$VEdi[i], pa = setup_sim$pa[i], timeintervals.end=c(730), timeintervals.start=c(0), Lam = 0.1/365)[[2]]
+})
+beep()
+colnames(simres_f2.1)<-colnam
+rownames(simres_f2.1)<-c()
+
+#separate the results to the time intervals
+sim_res_m24_fig2_90<-as.data.frame(simres_f2)
+#add the parameter values in the right row order
+sim_res_m24_fig2_90<-cbind(setup_sim$pa, setup_sim$VEin, setup_sim$VEdi, sim_res_m24_fig2)
+#add col names
+colnames(sim_res_m24_fig2_90)<-c( "pa", "VEin", "VEdi", colnam)
+#add VE_asym eqn to all datasets
+sim_res_m24_fig2_90$VEasym<-1-((1-sim_res_m24_fig2_90$VEin)-(1-sim_res_m24_fig2_90$pa )*(1-sim_res_m24_fig2_90$VEin)*(1-sim_res_m24_fig2_90$VEdi))/sim_res_m24_fig2_90$pa 
+beep()
+
+```
+
+```{r save data}
+#write.csv(sim_res_m24_90_fig1, "sim_res_m24_90_fig1.csv", row.names = FALSE)
+```
+
+```{r Default parameters summarise 90% , include=FALSE}
+figure_dat_fig2_90_m24<- sim_res_m24_fig2_90%>%
+  group_by(VEin, pa)%>%
+  summarise(
+    #asym
+    mean_VEasym.inc = mean(`VE asym IRR s-ve (first case)`)*100,
+    lci_VEasym.inc=quantile(`VE asym IRR s-ve (first case)`, 0.025)*100,
+    uci_VEasym.inc=quantile(`VE asym IRR s-ve (first case)`, 0.975)*100,
+    mean_VEasym.inc2 = mean(`VE asym IRR s-ve (first case) 2`)*100,
+    lci_VEasym.inc2=quantile(`VE asym IRR s-ve (first case) 2`, 0.025)*100,
+    uci_VEasym.inc2=quantile(`VE asym IRR s-ve (first case) 2`, 0.975)*100,
+    mean_VEasym.prop = mean(`VE asym RR s-ve`)*100,
+    lci_VEasym.prop=quantile(`VE asym RR s-ve`, 0.025)*100,
+    uci_VEasym.prop=quantile(`VE asym RR s-ve`, 0.975)*100,
+    #inf
+    mean_VEinf.inc = mean(`VE inf IRR s-ve (first case)`)*100,
+    lci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.025)*100,
+    uci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.975)*100,
+    mean_VEinf.prop = mean(`VE inf RR s-ve`)*100,
+    lci_VEinf.prop=quantile(`VE inf RR s-ve`, 0.025)*100,
+    uci_VEinf.prop=quantile(`VE inf RR s-ve`, 0.975)*100,
+    #equation
+    VEasym = mean(VEasym)*100
+  )
+#setup for figures - convert to factors
+figure_dat_fig2_90_m24$VEin<- as.factor(figure_dat_fig2_90_m24$VEin)
+
+#add proportion symptomatic column
+figure_dat_fig2_90_m24$ps<-(1-figure_dat_fig2_90_m24$pa)
+```
+
+```{r smooth line for eqn 90}
+pa<-seq(0.001,1, 0.001)
+VEin90<-0.9
+VEin80<-0.8
+VEin70<-0.7
+VEin60<-0.6
+VEin50<-0.5
+VEin40<-0.4
+VEin30<-0.3
+VEin20<-0.2
+VEin10<-0.1
+VEin00<-0.0
+
+VEdi90<-0.0
+VEdi80<-0.5
+VEdi70<-0.6666667
+VEdi60<-0.75
+VEdi50<-0.8
+VEdi40<-0.8333333
+VEdi30<-0.8571429	
+VEdi20<-0.875
+VEdi10<-0.8888889
+VEdi00<-0.9
+
+VEasym_eqn<- 1-((1-VEin90)-(1-pa)*(1-VEin90)*(1-VEdi90))/pa
+data90<- data.frame(pa, VEasym_eqn)
+data90$ve<-rep(0.9, nrow(data90))
+
+VEasym_eqn<- 1-((1-VEin80)-(1-pa)*(1-VEin80)*(1-VEdi80))/pa
+data80<- data.frame(pa, VEasym_eqn)
+data80$ve<-rep(0.8, nrow(data80))
+
+VEasym_eqn<- 1-((1-VEin70)-(1-pa)*(1-VEin70)*(1-VEdi70))/pa
+data70<- data.frame(pa, VEasym_eqn)
+data70$ve<-rep(0.7, nrow(data70))
+
+VEasym_eqn<- 1-((1-VEin60)-(1-pa)*(1-VEin60)*(1-VEdi60))/pa
+data60<- data.frame(pa, VEasym_eqn)
+data60$ve<-rep(0.6, nrow(data60))
+
+VEasym_eqn<- 1-((1-VEin50)-(1-pa)*(1-VEin50)*(1-VEdi50))/pa
+data50<- data.frame(pa, VEasym_eqn)
+data50$ve<-rep(0.5, nrow(data50))
+
+VEasym_eqn<- 1-((1-VEin40)-(1-pa)*(1-VEin40)*(1-VEdi40))/pa
+data40<- data.frame(pa, VEasym_eqn)
+data40$ve<-rep(0.4, nrow(data40))
+
+VEasym_eqn<- 1-((1-VEin30)-(1-pa)*(1-VEin30)*(1-VEdi30))/pa
+data30<- data.frame(pa, VEasym_eqn)
+data30$ve<-rep(0.3, nrow(data30))
+
+VEasym_eqn<- 1-((1-VEin20)-(1-pa)*(1-VEin20)*(1-VEdi20))/pa
+data20<- data.frame(pa, VEasym_eqn)
+data20$ve<-rep(0.2, nrow(data20))
+
+VEasym_eqn<- 1-((1-VEin10)-(1-pa)*(1-VEin10)*(1-VEdi10))/pa
+data10<- data.frame(pa, VEasym_eqn)
+data10$ve<-rep(0.1, nrow(data10))
+
+VEasym_eqn<- 1-((1-VEin00)-(1-pa)*(1-VEin00)*(1-VEdi00))/pa
+data00<- data.frame(pa, VEasym_eqn)
+data00$ve<-rep(0.0, nrow(data00))
+
+dataasym90<-rbind(data90,data80,data70,data60,data50,data40,data30,data20,data10,data00)
+dataasym90$VEasym_eqn<-dataasym90$VEasym_eqn*100
+dataasym90$ve<- as.factor(dataasym90$ve)
+dataasym90$ps<-1-dataasym90$pa
+```
+
+```{r 90% figure}
+nb.cols <- 10 # get more colors for color palette 
+mycolors <- colorRampPalette(brewer.pal(8, "RdBu"))(nb.cols)
+ggplot(figure_dat_fig2_90_m24, aes(x=ps, y=mean_VEasym.inc2, group = VEin, color = VEin))+
+  geom_point(aes(color = VEin, group = VEin))+
+  geom_errorbar(aes(ymin=lci_VEasym.inc2, ymax=uci_VEasym.inc2), width = 0.01)+
+  theme_classic()+
+  coord_cartesian(y=c(-100,100))+
+  labs(x= "Proportion symptomatic", y = "VE asymptomatic infection")+
+   theme(plot.title = element_text(hjust = 0.5), text = element_text(size=12),
+        axis.text = element_text(size=11))+
+ geom_hline(yintercept = 90, linetype = "dotted")+
+  geom_hline(yintercept = 0, linetype = "dotted")+
+  scale_color_manual(values = mycolors, name = "VE infection", labels = c("0%", "10%","20%","30%","40%","50%","60%","70%", "80%", "90%"))+
+  scale_x_continuous(breaks=seq(0,1,0.1), labels = c("0%", "10%","20%","30%","40%","50%","60%","70%", "80%", "90%", "100%"))+ 
+  scale_y_continuous(breaks=seq(-100,100,10), labels = c("-100%", " ", "-80%", " ", "-60%", " ", "-40%", " ", "-20%", " ", "0%", " ","20%"," ","40%"," ","60%"," ", "80%", " ", "100%") )+
+  geom_line(data=dataasym90, aes(x=ps, y=VEasym_eqn, group = ve, color = ve))
+```
+
+```{r end}
+# When you're done, clean up the cluster
+stopImplicitCluster()
+```

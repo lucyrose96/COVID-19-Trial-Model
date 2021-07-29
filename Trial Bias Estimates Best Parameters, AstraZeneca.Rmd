@@ -1,0 +1,229 @@
+---
+title: "Trial Bias Estimates Best Parameters, AstraZeneca"
+output: html_document
+---
+
+#1. Setup
+
+```{r packages}
+library(ggplot2)
+library(grid)
+library(ggimage)
+library(RColorBrewer)
+library(foreach)
+library(doParallel)
+library(reshape2)
+library(metR)
+library(dplyr)
+library(akima)
+library(readr)
+```
+
+```{r setup for parallel processing}
+numCores <- detectCores()#number of cores that my computer has
+numCores
+registerDoParallel(numCores) # use multicore, set to the number of my cores
+#note - must run end chunk when done
+```
+
+# 2. Get correct FOI for the reported number of placebo group infections.
+
+AZ: Emary - 210 symptomatic, 112 asymptomatic/unknown, 347 total (also includes non-primary symptoms)
+
+```{r run sims for FOI AZ}
+#set parameter values
+nsim=50
+FOI<-c(seq(0.05, 0.3, 0.05), 0.17)/365
+FOI_n<-length(FOI)
+#number of simulations (rows) and results (columns)
+nrows<-nsim*FOI_n
+ncols<-length(colnam)
+#Create dataframe to run through
+simres<-as.data.frame(array(NA, dim = c(nrows, ncols)))
+colnames(simres)<-colnam
+simres$FOI<-rep(FOI, each =  nsim)
+#Run model
+system.time(sim_res2<-foreach(i = 1:nrow(simres), .combine=rbind, .packages = "rateratio.test")%dopar%{
+  model_run(Lam = simres$FOI[i], timeintervals.end=c(149), timeintervals.start=c(0), n=8534)[[2]] # paper reports for August 3rd to december 30th
+})
+colnames(sim_res2)<-colnam
+rownames(sim_res2)<-c()
+#separate the results to the time intervals
+sim_res_d149_AZ_FOI<-as.data.frame(sim_res2)#month 1 results are the 1st, 6th, 11th etc rows
+#add parameter value columns
+sim_res_d149_AZ_FOI<-cbind(simres$FOI, sim_res_d149_AZ_FOI)
+#add column names
+colnames(sim_res_d149_AZ_FOI)<-c( "FOI", colnam)
+beep()
+```
+
+```{r AZ FOI plot pcr}
+ggplot(sim_res_d149_AZ_FOI, aes(x=FOI*365, y= `Num. first PCR s-ve (placebo) 2`))+
+  geom_point()+
+  geom_smooth()+
+  scale_y_continuous(breaks = seq(0,1000, 100), labels = seq(0,1000, 100) )+
+  coord_cartesian(ylim = c(0,600))+
+  geom_hline(yintercept = 347)+
+  labs(title = "Infection")+
+  geom_vline(xintercept = 0.17)
+
+ggplot(sim_res_d149_AZ_FOI, aes(x=FOI*365, y= `Total sym (placebo)`))+
+  geom_point()+
+  geom_smooth()+
+  scale_y_continuous(breaks = seq(0,1000, 100), labels = seq(0,1000, 100) )+
+  coord_cartesian(ylim = c(0,600))+
+  geom_hline(yintercept = 210)+
+  labs(title = "Symptomatic Infection")+
+  geom_vline(xintercept = 0.17)
+
+ggplot(sim_res_d149_AZ_FOI, aes(x=FOI*365, y= `Num. first PCR asym s-ve (placebo)`))+
+  geom_point()+
+  geom_smooth()+
+  scale_y_continuous(breaks = seq(0,1000, 100), labels = seq(0,1000, 100) )+
+  coord_cartesian(ylim = c(0,600))+
+  geom_hline(yintercept = 112)+
+  labs(title = "Asymptomatic Infection")+
+  geom_vline(xintercept = 0.17)
+```
+
+-> AZ FOI = 0.2, best value for sym and asym. Slight underestimation for all infections but that's because their value included non-primary symptoms. 
+
+# 3. Run model with best estimates for FOI
+
+```{r run sims AZ}
+#set parameter values
+nsim=200
+VEin<-seq(0.4,0.7,0.1)
+VEin_n<-length(VEin)
+VEdi<- c(0, 0.3, 0.5, 0.7)
+VEdi_n<-length(VEdi)
+#number of simulations (rows) and results (columns)
+nrows<-nsim*VEin_n*VEdi_n
+ncols<-length(colnam)
+#Create dataframe to run through
+simres<-as.data.frame(array(NA, dim = c(nrows, ncols)))
+colnames(simres)<-colnam
+simres$VEin<-rep(VEin, each =  nsim*VEdi_n)
+simres$VEdi<-rep(rep(VEdi, each =  nsim), VEin_n)
+#Run model (default params minus VEin and VEdi)
+system.time(sim_res2<-foreach(i = 1:nrow(simres), .combine=rbind, .packages = "rateratio.test")%dopar%{
+  model_run(VEdi = simres$VEdi[i], VEin = simres$VEin[i], Lam = 0.17/365, timeintervals.end=c(149), timeintervals.start=c(0), n=8534, pcr.specificity = 0.99945)[[2]]
+})
+colnames(sim_res2)<-colnam
+rownames(sim_res2)<-c()
+#separate the results to the time intervals
+sim_res_AZ<-as.data.frame(sim_res2)
+#add parameter value columns
+sim_res_AZ<-cbind(simres$VEin, simres$VEdi, sim_res_AZ)
+#add column names
+colnames(sim_res_AZ)<-c( "VEin", "VEdi", colnam)
+beep()
+```
+
+
+# 4. Save data
+
+```{r write data AZ}
+#write.csv(sim_res_AZ, "sim_res_AZ_2107.csv", row.names = FALSE)
+#sim_res_AZ <- read_csv("sim_res_AZ_0807.csv")
+```
+
+# 5. Summarise
+
+```{r summarise AZ}
+figure_dat_AZ<- sim_res_AZ %>%
+  group_by(VEin, VEdi)%>%
+  summarise(
+    mean_VEinf.inc = mean(`VE inf IRR s-ve (first case)`),
+    lci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.025),
+    uci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.975),
+    mean_VEsym.inc = mean(`VE sym IRR s-ve (first case)`),
+    lci_VEsym.inc=quantile(`VE sym IRR s-ve (first case)`, 0.025),
+    uci_VEsym.inc=quantile(`VE sym IRR s-ve (first case)`, 0.975),
+    mean_VEasym.inc = mean(`VE asym IRR s-ve (first case)`),
+    lci_VEasym.inc=quantile(`VE asym IRR s-ve (first case)`, 0.025),
+    uci_VEasym.inc=quantile(`VE asym IRR s-ve (first case)`, 0.975),
+    mean_VEinf_pcr = mean(`VE inf PCR IRR (first case)`),
+    lci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.025),
+    uci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.975),
+    mean_VEasym_pcr = mean(`VE asym PCR IRR (first case)`),
+    lci_VEasym_pcr=quantile(`VE asym PCR IRR (first case)`, 0.025),
+    uci_VEasym_pcr=quantile(`VE asym PCR IRR (first case)`, 0.975),
+    mean_VEinf_pcr_RR = mean(`VE inf PCR 1-RR`),
+    lci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.025),
+    uci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.975),
+    mean_VEinf_ser = mean(`VE serocon`),
+    lci_VEinf_ser=quantile(`VE serocon`, 0.025),
+    uci_VEinf_ser=quantile(`VE serocon`, 0.975),
+    mean_VEasym_ser = mean(`VE asymp. serocon`),
+    lci_VEasym_ser=quantile(`VE asymp. serocon`, 0.025),
+    uci_VEasym_ser=quantile(`VE asymp. serocon`, 0.975),
+    mean_VEsym_ser = mean(`VE symp. serocon`),
+    lci_VEsym_ser=quantile(`VE symp. serocon`, 0.025),
+    uci_VEsym_ser=quantile(`VE symp. serocon`, 0.975)
+  )
+
+figure_dat_AZ$ps=0.67
+figure_dat_AZ$VEsym=1-(1-figure_dat_AZ$VEin)*(1-figure_dat_AZ$VEdi)
+figure_dat_AZ$VEasym=1-((1-figure_dat_AZ$ps)*(1-figure_dat_AZ$VEin)+figure_dat_AZ$ps*(1-figure_dat_AZ$VEin)*figure_dat_AZ$VEdi)/(1-figure_dat_AZ$ps)
+
+```
+
+# 6. Plot to estimate bias
+
+*With VEdi*
+
+```{r PCR True ~ Observed VEasym}
+figure_dat_AZ%>%
+ggplot(., aes(y=mean_VEasym_pcr, x=VEasym, group = as.factor(VEdi), color = as.factor(VEdi)))+
+  geom_line( linetype = "longdash")+
+  geom_point()+
+  geom_smooth(aes(y=lci_VEasym_pcr))+
+  geom_smooth(aes(y=uci_VEasym_pcr))+
+  coord_fixed(xlim = c(-1,1), ylim = c(-0.5,0.4), ratio = 2)+
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  geom_vline(xintercept = 0.274, linetype = "dotted")+
+  geom_vline(xintercept = 0.585, linetype = "dotted")+
+  geom_vline(xintercept = -0.120, linetype = "dotted")+
+  geom_hline(yintercept = 0.146, linetype = "dotted", color = "red")+
+  scale_x_continuous(breaks = seq(-1, 1, 0.1), labels = c("-100", "", "-80", "", "-60", "", "-40", "", "-20", "", "0", "", "20", "", "40","", "60", "", "80", "", "100"))+
+  scale_y_continuous(breaks = seq(-0.2, 0.4, 0.05))
+```
+
+```{r PCR Bias ~ Observed VEsym}
+figure_dat_AZ%>%
+ggplot(., aes(x=mean_VEsym.inc, y=mean_VEsym.inc-VEsym, group = as.factor(VEdi), color = as.factor(VEdi)))+
+  geom_line( linetype = "longdash")+
+  geom_point()+
+  labs(title = "PCR-estimated VEsym", x="PCR-estimated VEsym", y="Expected Bias")+
+  coord_fixed(xlim = c(0,1), ylim = c(-0.2,0.2), ratio = 2.5)+
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  geom_hline(yintercept = 0, linetype = "dotted")+
+  geom_vline(xintercept = 0.723, linetype = "dotted", color = "red")+
+  scale_x_continuous(breaks = seq(-1, 1, 0.1), labels = c("-100", "", "-80", "", "-60", "", "-40", "", "-20", "", "0", "", "20", "", "40","", "60", "", "80", "", "100"))+
+  scale_y_continuous(breaks = seq(-0.2, 0.2, 0.05), labels = c("-20", "", "-10", "", "0", "", "10", "", "20"))
+```
+
+```{r PCR True ~ Observed VEin}
+figure_dat_AZ%>%
+ggplot(., aes(y=mean_VEinf_pcr, x=VEin, group = as.factor(VEdi), color = as.factor(VEdi)))+
+  geom_line( linetype = "longdash")+
+  geom_point()+
+  labs(title = "PCR-estimated VEin", x="True", y="Observed")+
+  geom_smooth(aes(y=lci_VEinf_pcr))+
+  geom_smooth(aes(y=uci_VEinf_pcr))+
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  geom_vline(xintercept = 0.590, linetype = "dotted")+
+  geom_vline(xintercept = 0.460, linetype = "dotted")+
+  geom_vline(xintercept = 0.682, linetype = "dotted")+
+  geom_hline(yintercept = 0.509, linetype = "dotted", color = "red")
+
+```
+
+```{r end}
+# When you're done, clean up the cluster
+stopImplicitCluster()
+```

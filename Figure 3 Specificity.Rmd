@@ -1,0 +1,257 @@
+---
+title: 'Figure 3: Specificity'
+output: html_document
+---
+
+```{r packages}
+library(ggplot2)
+library(grid)
+library(ggimage)
+library(RColorBrewer)
+library(foreach)
+library(doParallel)
+library(dplyr)
+```
+
+```{r setup for parallel processing}
+numCores <- detectCores()#number of cores that my computer has
+numCores
+registerDoParallel(numCores) # use multicore, set to the number of my cores
+```
+
+```{r run sims}
+#set parameter values
+nsim=1
+sens<-c(0.8,0.9,1)
+sens_n<-length(sens)
+spec<- seq(0.99,1,0.002)
+spec_n<-length(spec)
+FOI<-c(0.05, 0.3)/365
+FOI_n<-length(FOI)
+#pcr specificity: as my model assumes that all symptomatic infections are detected I can't change sensitivity for these. Therefore I decrease sensitivity to asymptomatic infections so that overall average infection sensitivity = sensitivity for serology infections. I do this by calculating the weighted average sensitivity across symptomatic and asymptomatic infections. 
+#Average sensitivity, sens_average = sens_sym*(1-pa)+sens_asym*pa
+#rearranged gives: sens_asym = (sens_average-(sens_sym*(1-pa)))/pa
+pa=0.3
+sens_sym=1
+sens_pcr<-(sens-(sens_sym*(1-pa)))/pa
+sens_pcr[3]<-1 #(check this is meant to be 1 when running this line). Must set as 1 in this way because using the equation above (I think) gives a value that is not exactly 1, which gives an error with the rbinom function.
+#number of simulations (rows) and results (columns)
+nrows<-nsim*sens_n*spec_n*FOI_n
+ncols<-length(colnam)
+#Create dataframe to run through
+simres<-as.data.frame(array(NA, dim = c(nrows, ncols)))
+colnames(simres)<-colnam
+simres$sens<-rep(sens, each =  nsim*spec_n*FOI_n)
+simres$sens_pcr<-rep(sens_pcr, each =  nsim*spec_n*FOI_n)
+simres$spec<-rep(rep(spec, each =  nsim*FOI_n), sens_n)
+simres$FOI<-rep(rep(rep(FOI, each =  nsim), sens_n), spec_n )
+#Run model
+system.time(sim_res2<-foreach(i = 1:nrow(simres), .combine=rbind, .packages = "rateratio.test")%dopar%{
+  model_run(p.antibod.asym = simres$sens[i], p.antibod.sym = simres$sens[i], asym.pcr.prob = simres$sens_pcr[i],  VEdi = 0, pcr.specificity = simres$spec[i], s.specificity = simres$spec[i], VEin = 0.7, Lam=simres$FOI[i])[[2]]
+})
+beep()
+colnames(sim_res2)<-colnam
+rownames(sim_res2)<-c()
+#separate the results to the time intervals
+sim_res_m1_fig3<-as.data.frame(sim_res2[seq(1,nrow(sim_res2),5),])#month 1 results are the 1st, 6th, 11th etc rows
+sim_res_m2_fig3<-as.data.frame(sim_res2[seq(2,nrow(sim_res2),5),])#month 2                 2nd, 7th, 12th etc
+sim_res_m6_fig3<-as.data.frame(sim_res2[seq(3,nrow(sim_res2),5),])
+sim_res_m12_fig3<-as.data.frame(sim_res2[seq(4,nrow(sim_res2),5),])
+sim_res_m24_fig3<-as.data.frame(sim_res2[seq(5,nrow(sim_res2),5),])
+#add parameter value columns
+sim_res_m1_fig3<-cbind(simres$sens, simres$spec, simres$FOI, sim_res_m1_fig3)
+sim_res_m2_fig3<-cbind(simres$sens, simres$spec, simres$FOI, sim_res_m2_fig3)
+sim_res_m6_fig3<-cbind(simres$sens, simres$spec, simres$FOI, sim_res_m6_fig3)
+sim_res_m12_fig3<-cbind(simres$sens, simres$spec, simres$FOI, sim_res_m12_fig3)
+sim_res_m24_fig3<-cbind(simres$sens, simres$spec, simres$FOI, sim_res_m24_fig3)
+#add column names
+colnames(sim_res_m1_fig3)<-c( "sens", "spec", "FOI",colnam)
+colnames(sim_res_m2_fig3)<-c( "sens", "spec", "FOI", colnam)
+colnames(sim_res_m6_fig3)<-c( "sens", "spec", "FOI", colnam)
+colnames(sim_res_m12_fig3)<-c( "sens", "spec", "FOI", colnam)
+colnames(sim_res_m24_fig3)<-c( "sens", "spec", "FOI", colnam)
+beep()
+```
+
+```{r save data}
+#write.csv(sim_res_m1_fig3, "sim_res_m1_fig3_1000.csv", row.names = FALSE)
+#write.csv(sim_res_m2_fig3, "sim_res_m2_fig3_1000.csv", row.names = FALSE)
+#write.csv(sim_res_m6_fig3, "sim_res_m6_fig3_1000.csv", row.names = FALSE)
+#write.csv(sim_res_m12_fig3, "sim_res_m12_fig3_1000.csv", row.names = FALSE)
+#write.csv(sim_res_m24_fig3, "sim_res_m24_fig3_1000.csv", row.names = FALSE)
+```
+
+
+```{r summarise, include=FALSE}
+figure_dat_fig3_m1 <- sim_res_m1_fig3 %>%
+  group_by(sens, spec, FOI)%>%
+  summarise(
+   mean_VEinf.inc = mean(`VE inf IRR s-ve (first case)`),
+    lci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.025),
+    uci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.975),
+    mean_VEinf_pcr = mean(`VE inf PCR IRR (first case)`),
+    lci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.025),
+    uci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.975),
+    mean_VEinf_pcr_RR = mean(`VE inf PCR 1-RR`),
+    lci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.025),
+    uci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.975),
+    mean_VEinf_ser = mean(`VE serocon`),
+    lci_VEinf_ser=quantile(`VE serocon`, 0.025),
+    uci_VEinf_ser=quantile(`VE serocon`, 0.975)
+  )
+figure_dat_fig3_m2<- sim_res_m2_fig3%>%
+  group_by(sens, spec, FOI)%>%
+  summarise(
+   mean_VEinf.inc = mean(`VE inf IRR s-ve (first case)`),
+    lci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.025),
+    uci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.975),
+    mean_VEinf_pcr = mean(`VE inf PCR IRR (first case)`),
+    lci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.025),
+    uci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.975),
+    mean_VEinf_pcr_RR = mean(`VE inf PCR 1-RR`),
+    lci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.025),
+    uci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.975),
+    mean_VEinf_ser = mean(`VE serocon`),
+    lci_VEinf_ser=quantile(`VE serocon`, 0.025),
+    uci_VEinf_ser=quantile(`VE serocon`, 0.975)
+  )
+figure_dat_fig3_m6<- sim_res_m6_fig3%>%
+  group_by(sens, spec, FOI)%>%
+  summarise(
+   mean_VEinf.inc = mean(`VE inf IRR s-ve (first case)`),
+    lci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.025),
+    uci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.975),
+    mean_VEinf_pcr = mean(`VE inf PCR IRR (first case)`),
+    lci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.025),
+    uci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.975),
+    mean_VEinf_pcr_RR = mean(`VE inf PCR 1-RR`),
+    lci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.025),
+    uci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.975),
+    mean_VEinf_ser = mean(`VE serocon`),
+    lci_VEinf_ser=quantile(`VE serocon`, 0.025),
+    uci_VEinf_ser=quantile(`VE serocon`, 0.975)
+  )
+figure_dat_fig3_m12<- sim_res_m12_fig3%>%
+  group_by(sens, spec, FOI)%>%
+  summarise(
+   mean_VEinf.inc = mean(`VE inf IRR s-ve (first case)`),
+    lci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.025),
+    uci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.975),
+    mean_VEinf_pcr = mean(`VE inf PCR IRR (first case)`),
+    lci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.025),
+    uci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.975),
+    mean_VEinf_pcr_RR = mean(`VE inf PCR 1-RR`),
+    lci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.025),
+    uci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.975),
+    mean_VEinf_ser = mean(`VE serocon`),
+    lci_VEinf_ser=quantile(`VE serocon`, 0.025),
+    uci_VEinf_ser=quantile(`VE serocon`, 0.975)
+  )
+figure_dat_fig3_m24<- sim_res_m24_fig3%>%
+  group_by(sens, spec, FOI)%>%
+  summarise(
+   mean_VEinf.inc = mean(`VE inf IRR s-ve (first case)`),
+    lci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.025),
+    uci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.975),
+    mean_VEinf_pcr = mean(`VE inf PCR IRR (first case)`),
+    lci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.025),
+    uci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.975),
+    mean_VEinf_pcr_RR = mean(`VE inf PCR 1-RR`),
+    lci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.025),
+    uci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.975),
+    mean_VEinf_ser = mean(`VE serocon`),
+    lci_VEinf_ser=quantile(`VE serocon`, 0.025),
+    uci_VEinf_ser=quantile(`VE serocon`, 0.975)
+  )
+
+figure_dat_fig3_m1$sens<-as.factor(figure_dat_fig3_m1$sens)
+figure_dat_fig3_m2$sens<-as.factor(figure_dat_fig3_m2$sens)
+figure_dat_fig3_m6$sens<-as.factor(figure_dat_fig3_m6$sens)
+figure_dat_fig3_m12$sens<-as.factor(figure_dat_fig3_m12$sens)
+figure_dat_fig3_m24$sens<-as.factor(figure_dat_fig3_m24$sens)
+
+```
+
+```{r plot setup}
+#setup
+textdata <- data.frame(
+  label = c("True VEin", " "),
+  FOI   = c(0.05,0.3))
+#add month column
+figure_dat_fig3_m1$month<-"1. Month 1"
+figure_dat_fig3_m2$month<-"2. Month 2"
+figure_dat_fig3_m6$month<-"3. Month 6"
+figure_dat_fig3_m12$month<-"4. Month 12"
+figure_dat_fig3_m24$month<-"5. Month 24"
+#all months together
+big_fig<-rbind(figure_dat_fig3_m1,figure_dat_fig3_m2,figure_dat_fig3_m6,figure_dat_fig3_m12,figure_dat_fig3_m24)
+#add test column
+big_fig_ser<-big_fig
+big_fig_ser$ve<-big_fig_ser$mean_VEinf_ser
+big_fig_ser$ve_lci<-big_fig_ser$lci_VEinf_ser
+big_fig_ser$ve_uci<-big_fig_ser$uci_VEinf_ser
+big_fig_ser$test<-"serology"
+big_fig_pcr<-big_fig
+big_fig_pcr$ve<-big_fig_pcr$mean_VEinf_pcr
+big_fig_pcr$ve_lci<-big_fig_pcr$lci_VEinf_pcr
+big_fig_pcr$ve_uci<-big_fig_pcr$uci_VEinf_pcr
+big_fig_pcr$test<-"pcr"
+big_fig_pcrRR<-big_fig
+big_fig_pcrRR$ve<-big_fig_pcr$mean_VEinf_pcr_RR
+big_fig_pcrRR$test<-"pcr_RR"
+#combine in long format
+big_fig_long<-rbind(big_fig_ser, big_fig_pcr)
+
+#other option make group variable
+big_fig_long$grp <- paste(big_fig_long$test,big_fig_long$sens)
+big_fig_long$month<-as.factor(big_fig_long$month)
+
+big_fig_long_lowFOI<-big_fig_long[which(big_fig_long$FOI == 0.05/365),]
+big_fig_long_highFOI<-big_fig_long[which(big_fig_long$FOI == 0.3/365),]
+big_fig_long_lowFOI$spec<-as.factor(big_fig_long_lowFOI$spec)
+big_fig_long_highFOI$spec<-as.factor(big_fig_long_highFOI$spec)
+
+#colours
+mypurples<-brewer.pal(n = 9, name = "Purples")[c(5,7,9)]#choose the darker shades
+myoranges<-brewer.pal(n = 9, name = "Oranges")[c(4,6,8)]
+mycolors<-c(mypurples, myoranges)
+```
+
+
+```{r plot}
+#plot LOW FOI
+big_fig_long_lowFOI%>%
+  filter(.,month == "3. Month 6")%>%
+ggplot(., aes(x=spec, y=ve))+
+  geom_point(aes(color = grp), position = position_dodge(width=0.7), size =2)+
+  geom_errorbar(aes(ymin = ve_lci, ymax = ve_uci, color = grp), width = 0.5, position = position_dodge(width=0.7))+
+   labs(y="Observed VE infection", x="Specificity", color = "Sensitivity")+
+  geom_hline(yintercept = 0.7, linetype = "dotted", color = "gray34")+
+  geom_hline(yintercept = 0, linetype = "dotted", color = "gray34")+
+  coord_fixed(y=c(0,0.74), ratio = 5)+
+  scale_color_manual(values= mycolors)+
+  scale_y_continuous(labels = c("0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%"), breaks = seq(0,0.7,0.1))+
+  scale_x_discrete(labels = c("99.0%", "99.2%", "99.4%", "99.6%", "99.8%", "100.0%"))+
+  theme_classic()+
+  theme(legend.position="none", text = element_text(size=13), axis.text = element_text(size=12), legend.text = element_text(size=12))
+#plot HIGH FOI
+big_fig_long_highFOI%>%
+  filter(.,month == "3. Month 6")%>%
+ggplot(., aes(x=spec, y=ve))+
+  geom_point(aes(color = grp), position = position_dodge(width=0.7), size =2)+
+  geom_errorbar(aes(ymin = ve_lci, ymax = ve_uci, color = grp), width = 0.5, position = position_dodge(width=0.7))+
+   labs(y="Observed VE infection", x="Specificity", color = "Sensitivity")+
+  geom_hline(yintercept = 0.7, linetype = "dotted", color = "gray34")+
+  geom_hline(yintercept = 0, linetype = "dotted", color = "gray34")+
+  coord_fixed(y=c(0,0.74), ratio = 5)+
+  scale_color_manual(values= mycolors)+
+  scale_y_continuous(labels = c("0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%"), breaks = seq(0,0.7,0.1))+
+  scale_x_discrete(labels = c("99.0%", "99.2%", "99.4%", "99.6%", "99.8%", "100.0%"))+
+  theme_classic()+
+  theme(legend.position="none", text = element_text(size=13), axis.text = element_text(size=12), legend.text = element_text(size=12))
+```
+
+```{r end}
+# When you're done, clean up the cluster
+stopImplicitCluster()
+```

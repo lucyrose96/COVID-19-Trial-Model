@@ -1,0 +1,189 @@
+---
+title: "Trial Bias Estimates Best Parameters, Janssen"
+output: html_document
+---
+
+#1. Setup
+
+```{r packages}
+library(ggplot2)
+library(grid)
+library(ggimage)
+library(RColorBrewer)
+library(foreach)
+library(doParallel)
+library(reshape2)
+library(metR)
+library(dplyr)
+library(akima)
+library(readr)
+```
+
+```{r setup for parallel processing}
+numCores <- detectCores()#number of cores that my computer has
+numCores
+registerDoParallel(numCores) # use multicore, set to the number of my cores
+```
+
+# 2. Get correct FOI for the reported number of placebo group infections.
+
+JJ serology risk set: 50 asym in 299 person years (N=1304)
+
+```{r run sims for FOI JJ}
+#set parameter values
+nsim=50
+FOI<-c(seq(0.1, 0.5, 0.05))/365
+
+FOI_n<-length(FOI)
+#number of simulations (rows) and results (columns)
+nrows<-nsim*FOI_n
+ncols<-length(colnam)
+#Create dataframe to run through
+simres<-as.data.frame(array(NA, dim = c(nrows, ncols)))
+colnames(simres)<-colnam
+simres$FOI<-rep(FOI, each =  nsim)
+#Run model
+system.time(sim_res2<-foreach(i = 1:nrow(simres), .combine=rbind, .packages = "rateratio.test")%dopar%{
+  model_run(Lam = simres$FOI[i], timeintervals.end=c(29, 71), timeintervals.start=c(0, 29), n=2608)[[1]] #1304 in placebo so to work out FOI I double this for total N
+})
+colnames(sim_res2)<-colnam
+rownames(sim_res2)<-c()
+#separate the results to the time intervals
+sim_res_JJ_FOI_m1<-as.data.frame(sim_res2[seq(1,nrow(sim_res2),2),])
+sim_res_JJ_FOI_m2<-as.data.frame(sim_res2[seq(2,nrow(sim_res2),2),])
+#add parameter value columns
+sim_res_JJ_FOI_m1<-cbind(simres$FOI, sim_res_JJ_FOI_m1)
+sim_res_JJ_FOI_m2<-cbind(simres$FOI, sim_res_JJ_FOI_m2)
+#add column names
+colnames(sim_res_JJ_FOI_m1)<-c( "FOI", colnam)
+colnames(sim_res_JJ_FOI_m2)<-c( "FOI", colnam)
+beep()
+```
+
+```{r JJ FOI plot serology}
+ggplot(sim_res_JJ_FOI_m2, aes(x=FOI*365, y= `Num. seroconversions s-ve (placebo)`))+
+  geom_point()+
+  geom_smooth()+
+  scale_y_continuous(breaks = seq(0,1000, 100), labels = seq(0,1000, 100) )+
+  coord_cartesian(ylim = c(0,100))+
+  geom_hline(yintercept = 50)+
+  labs(title = "Asymptomatic Infection")+
+  geom_vline(xintercept = 0.35)
+```
+
+-> JJ FOI = 0.35
+
+# 3. Run model with best estimates for FOI
+
+```{r run sims JJ}
+#set parameter values
+nsim=100
+VEin<-seq(0.4,0.9,0.1)
+VEin_n<-length(VEin)
+VEdi<- c(-0.2, -0.1, 0, 0.3, 0.5)
+VEdi_n<-length(VEdi)
+#number of simulations (rows) and results (columns)
+nrows<-nsim*VEin_n*VEdi_n
+ncols<-length(colnam)
+#Create dataframe to run through
+simres<-as.data.frame(array(NA, dim = c(nrows, ncols)))
+colnames(simres)<-colnam
+simres$VEin<-rep(VEin, each =  nsim*VEdi_n)
+simres$VEdi<-rep(rep(VEdi, each =  nsim), VEin_n)
+#Run model (default params minus VEin and VEdi)
+system.time(sim_res2<-foreach(i = 1:nrow(simres), .combine=rbind, .packages = "rateratio.test")%dopar%{
+  model_run(VEdi = simres$VEdi[i], VEin = simres$VEin[i], Lam = 0.35/365, timeintervals.end=c(29, 71), timeintervals.start=c(0, 29), n=2650)[[1]]
+})
+colnames(sim_res2)<-colnam
+rownames(sim_res2)<-c()
+#separate the results to the time intervals
+sim_res_JJ_m2b<-as.data.frame(sim_res2[seq(2,nrow(sim_res2),2),])
+#add parameter value columns
+sim_res_JJ_m2b<-cbind(simres$VEin, simres$VEdi, sim_res_JJ_m2b)
+#add column names
+colnames(sim_res_JJ_m2b)<-c( "VEin", "VEdi", colnam)
+
+beep()
+```
+```{r JJ FOI plot}
+ggplot(sim_res_JJ_m2b, aes(y=`Num. seroconversions s-ve (placebo)`))+
+  geom_boxplot()+
+  scale_y_continuous(breaks = seq(0,100, 10), labels = seq(0,100, 10) )+
+  coord_cartesian(ylim = c(0,100))+
+  geom_hline(yintercept = 50)+
+  labs(title = "Asymptomatic Infection")
+```
+
+
+# 4. Save data
+
+```{r write data AZ}
+#write.csv(sim_res_JJ_m2b, "sim_res_JJ_m2b.csv", row.names = FALSE)
+#sim_res_JJ_m2b <- read_csv("sim_res_JJ_m2b.csv")
+```
+
+# 5. Summarise
+
+```{r summarise JJ b}
+figure_dat_JJ_m2b <- sim_res_JJ_m2b %>%
+  group_by(VEin, VEdi)%>%
+  summarise(
+    mean_VEinf.inc = mean(`VE inf IRR s-ve (first case)`),
+    lci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.025),
+    uci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.975),
+    mean_VEsym.inc = mean(`VE sym IRR s-ve (first case)`),
+    lci_VEsym.inc=quantile(`VE sym IRR s-ve (first case)`, 0.025),
+    uci_VEsym.inc=quantile(`VE sym IRR s-ve (first case)`, 0.975),
+    mean_VEasym.inc = mean(`VE asym IRR s-ve (first case)`),
+    lci_VEasym.inc=quantile(`VE asym IRR s-ve (first case)`, 0.025),
+    uci_VEasym.inc=quantile(`VE asym IRR s-ve (first case)`, 0.975),
+    mean_VEasym_ser = mean(`VE asymp. serocon`),
+    lci_VEasym_ser=quantile(`VE asymp. serocon`, 0.025),
+    uci_VEasym_ser=quantile(`VE asymp. serocon`, 0.975)
+  )
+
+figure_dat_JJ_m2b$ps=0.67
+figure_dat_JJ_m2b$VEsym=1-(1-figure_dat_JJ_m2b$VEin)*(1-figure_dat_JJ_m2b$VEdi)
+figure_dat_JJ_m2b$VEasym=1-((1-figure_dat_JJ_m2b$ps)*(1-figure_dat_JJ_m2b$VEin)+figure_dat_JJ_m2b$ps*(1-figure_dat_JJ_m2b$VEin)*figure_dat_JJ_m2b$VEdi)/(1-figure_dat_JJ_m2b$ps)
+
+```
+# 6. Plot to estimate bias
+
+*With VEdi*
+
+```{r Serology True ~ Observed}
+figure_dat_JJ_m2b%>%
+ggplot(., aes(x=VEasym, y=mean_VEasym_ser, color =as.factor(VEdi), group =as.factor(VEdi)))+
+  geom_point()+
+  geom_smooth()+
+  geom_smooth(aes(y=lci_VEasym_ser))+
+  geom_smooth(aes(y=uci_VEasym_ser))+
+  labs(title = "Serology-estimated VEasym", y="Serology-estimated VEasym", x="True VEasym")+
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+-> VEpr makes little difference, and estimation difficult
+
+*No VEdi*
+
+```{r Serology True ~ Observed}
+figure_dat_JJ_m2b%>%
+ggplot(., aes(x=VEasym, y=mean_VEasym_ser))+
+  geom_point()+
+  geom_smooth()+
+  geom_smooth(aes(y=lci_VEasym_ser))+
+  geom_smooth(aes(y=uci_VEasym_ser))+
+  labs(title = "Serology-estimated VEasym", y="Serology-estimated VEasym", x="True VEasym")+
+  theme_classic()+
+  geom_hline(yintercept = 0.655, linetype = "dotted", color = "red")+
+  geom_vline(xintercept = 0.792, linetype = "dotted", color = "red")+
+  geom_vline(xintercept = 0.925, linetype = "dotted", color = "red")+
+  geom_vline(xintercept = 0.236, linetype = "dotted", color = "red")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r end}
+# When you're done, clean up the cluster
+stopImplicitCluster()
+```

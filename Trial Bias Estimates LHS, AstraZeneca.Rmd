@@ -1,0 +1,167 @@
+---
+title: "Trial Bias Estimates LHS, AstraZeneca"
+output: html_document
+---
+
+#1. Setup
+
+In this file I perform latin hypercube sampling to explore the plausible parameter ranges for multiple parameters, to estimate 95% confidence intervals for VEin, VEasym, and VEpr that account for uncertainies in the degree and magnitude of bias, for the AstraZeneca results. Here I make one assumptions, that the VEsym reported in the trial is accurate.
+
+To explore the effect of adherence I use a proxy for testing frequency, with 100% adherence modeled with weekly testing (as specified in the protocol), to fortnightly frequency to represent approximately 50% adherence. For each of these I give a range for the probability of detection between the upper and lower 95% confidence intervals given in Hellewell et al. 2021.
+
+```{r packages}
+library(grid)
+library(foreach)
+library(doParallel)
+library(reshape2)
+library(metR)
+library(dplyr)
+library(akima)
+library(readr)
+library(lhs)
+library(knitr)
+library(kableExtra)
+library(Rfit)
+library(openxlsx)
+```
+
+```{r setup for parallel processing}
+numCores <- detectCores()#number of cores that my computer has
+numCores
+registerDoParallel(numCores) # use multicore, set to the number of my cores
+```
+
+```{r LHS params}
+VEsym = 0.723
+params_LHS<-randomLHS(5000,10) #5000 simulations, 10 parameters with ranges
+ params_LHS[,1]<-qunif(params_LHS[,1], min = 0.1/365, max = 0.2/365) # baseline hazard of infection, Lam
+ params_LHS[,2]<-qunif(params_LHS[,2], min = 0.2, max = 0.5) # probability that an infection is asymptomatic, pa (1-ps)
+ params_LHS[,3]<-qunif(params_LHS[,3], min = 0.1, max = 0.2) # natural immunity against reinfection
+ params_LHS[,4]<-qunif(params_LHS[,4], min = 0.3, max = 0.4) # natural immunity against symptoms
+ params_LHS[,5]<- qunif(params_LHS[,5], min =1-1/(1-params_LHS[,2]), max = VEsym)# VE progression min 1-(1/(1-pa)), max = VEsym (assuming VEin >=0)
+ params_LHS[,6]<- 1-(1-VEsym)/(1- params_LHS[,5])# VE infection when VEpr >=0 (to give assumed VEsym)
+ params_LHS[,7]<-qunif(params_LHS[,7], min =0.9991, max = 0.9998) # PCR specificity
+ params_LHS[,8]<-floor(qunif(params_LHS[,8], min =7, max = 15)) #days between pcr (proxy for adherence to weekly testing)
+ #params_LHS[,9] is the independent sensitivity value
+ #params_LHS[,10] is the sensitivity value that is dependent on frequency of testing
+ params_LHS<-as.data.frame(params_LHS)
+colnames(params_LHS)<-c("FOI", "pa", "nat_immun_in", "nat_immun_pr", "VEpr", "VEin", "pcr.specificity", "testing_freq", "independent_sens", "asym.pcr.prob")
+
+#Adding uncertainty to probability of detection
+params_LHS$asym.pcr.prob[which(params_LHS$testing_freq == 7)]<-  qunif(params_LHS$asym.pcr.prob[which(params_LHS$testing_freq == 7)], min=0.650, max=0.945) #relative prob asymptomatic infection detection (matched to freq of testing)
+params_LHS$asym.pcr.prob[which(params_LHS$testing_freq == 8)]<-  qunif(params_LHS$asym.pcr.prob[which(params_LHS$testing_freq == 8)], min=0.599, max=0.918)  
+params_LHS$asym.pcr.prob[which(params_LHS$testing_freq == 9)]<-  qunif(params_LHS$asym.pcr.prob[which(params_LHS$testing_freq == 9)], min=0.554, max=0.888)   
+params_LHS$asym.pcr.prob[which(params_LHS$testing_freq == 10)]<- qunif(params_LHS$asym.pcr.prob[which(params_LHS$testing_freq == 10)], min=0.514, max=0.856)   
+params_LHS$asym.pcr.prob[which(params_LHS$testing_freq == 11)]<- qunif(params_LHS$asym.pcr.prob[which(params_LHS$testing_freq == 11)], min=0.479, max=0.823) 
+params_LHS$asym.pcr.prob[which(params_LHS$testing_freq == 12)]<- qunif(params_LHS$asym.pcr.prob[which(params_LHS$testing_freq == 12)], min=0.448, max=0.790) 
+params_LHS$asym.pcr.prob[which(params_LHS$testing_freq == 13)]<- qunif(params_LHS$asym.pcr.prob[which(params_LHS$testing_freq == 13)], min=0.419, max=0.758)  
+params_LHS$asym.pcr.prob[which(params_LHS$testing_freq == 14)]<- qunif(params_LHS$asym.pcr.prob[which(params_LHS$testing_freq == 14)], min=0.394, max=0.727) 
+
+VEasym_vec<- 1-(params_LHS$pa*(1-params_LHS$VEin)+(1-params_LHS$pa)*(1-params_LHS$VEin)*params_LHS$VEpr)/params_LHS$pa
+range(VEasym_vec)
+VEsym_vec<- 1-(1-params_LHS$VEin)*(1-params_LHS$VEpr)
+```
+
+# 2. Run simulations
+
+```{r run sims}
+#number of simulations (rows) and results (columns)
+nrow<-nrow(params_LHS)
+ncols<-length(colnam)
+
+#Run model
+system.time(sim_res2<-foreach(i = 1:nrow(params_LHS), .combine=rbind, .packages = "rateratio.test")%dopar%{
+  model_run(Lam = params_LHS$FOI[i], pa= params_LHS$pa[i], ai.r=params_LHS$nat_immun_in[i], si.r=params_LHS$nat_immun_in[i], ai.w=params_LHS$nat_immun_in[i], si.w=params_LHS$nat_immun_in[i], as.r=params_LHS$nat_immun_pr[i], ss.r=params_LHS$nat_immun_pr[i], as.w=params_LHS$nat_immun_pr[i], ss.w=params_LHS$nat_immun_pr[i], VEin = params_LHS$VEin[i], VEdi = params_LHS$VEpr[i], asym.pcr.prob= params_LHS$asym.pcr.prob[i], pcr.specificity = params_LHS$pcr.specificity[i], days_between_pcr=params_LHS$testing_freq[i], timeintervals.end=c(149), timeintervals.start=c(0), n=8534)[[2]] # paper reports for August 3rd to december 30th
+})
+colnames(sim_res2)<-colnam
+rownames(sim_res2)<-c()
+beep()
+#separate the results to the time intervals
+sim_res_AZ_LHSa<-as.data.frame(sim_res2)#month 1 results are the 1st, 6th, 11th etc rows
+#add parameter value columns
+sim_res_AZ_LHSa<-cbind(params_LHS$FOI, params_LHS$pa, params_LHS$nat_immun_in, params_LHS$nat_immun_pr, params_LHS$VEin, params_LHS$VEpr, params_LHS$asym.pcr.prob, params_LHS$pcr.specificity, params_LHS$testing_freq, params_LHS$independent_sens, sim_res_AZ_LHSa)
+#add column names
+colnames(sim_res_AZ_LHSa)<-c( "FOI", "pa", "nat_immun_in", "nat_immun_pr", "VEin", "VEdi", "asym.pcr.prob", "pcr.specificity", "freq", "independent_sens", colnam)
+#add VE columns
+sim_res_AZ_LHSa$VEsym<-VEsym
+sim_res_AZ_LHSa$VEasym<- 1-(sim_res_AZ_LHSa$pa*(1-sim_res_AZ_LHSa$VEin)+(1-sim_res_AZ_LHSa$pa)*(1-sim_res_AZ_LHSa$VEin)*sim_res_AZ_LHSa$VEdi)/sim_res_AZ_LHSa$pa
+beep()
+```
+
+# 3. Save data
+
+```{r write data AZ}
+#write.csv(sim_res_AZ_LHSa, "sim_res_AZ_LHSa.csv", row.names = FALSE)
+```
+
+# 4. Subset to simulations with estimates within the reported 95% CIs
+
+```{r combined dataset}
+sim_res_AZ_LHS_VEa<-sim_res_AZ_LHSa[which(sim_res_AZ_LHSa$`VE sym IRR s-ve (first case) 2` >= 0.631 & sim_res_AZ_LHSa$`VE sym IRR s-ve (first case) 2` <= 0.793 & sim_res_AZ_LHSa$`VE inf PCR IRR (first case)` >= 0.41 & sim_res_AZ_LHSa$`VE inf PCR IRR (first case)` <= 0.59 & sim_res_AZ_LHSa$`VE asym PCR IRR (first case) 2` >= -0.121 & sim_res_AZ_LHSa$`VE asym PCR IRR (first case) 2` <= 0.349 ),]
+summary_VEa<-sim_res_AZ_LHS_VEa %>%
+  summarise(
+    inf_med=median(VEin),
+    inf_uci=quantile(VEin, 0.975),
+    inf_lci=quantile(VEin, 0.025),
+    asym_med=median(VEasym),
+    asym_uci=quantile(VEasym, 0.975),
+    asym_lci=quantile(VEasym, 0.025),
+    pr_median=median(VEdi),
+    pr_uci=quantile(VEdi, 0.975),
+    pr_lci=quantile(VEdi, 0.025)
+    )
+summary_VEa
+```
+# 5. Regression
+
+```{r variables}
+sim_res_AZ_LHSa$pcr.specificity.perc<-sim_res_AZ_LHSa$pcr.specificity*100
+sim_res_AZ_LHSa$pcr.specificity.perc.centred<-sim_res_AZ_LHSa$pcr.specificity.perc-mean(sim_res_AZ_LHSa$pcr.specificity.perc)
+sim_res_AZ_LHSa$VEin.perc<-sim_res_AZ_LHSa$VEin*100
+sim_res_AZ_LHSa$VEin.perc.centred<- sim_res_AZ_LHSa$VEin.perc-mean(sim_res_AZ_LHSa$VEin.perc)
+sim_res_AZ_LHSa$VEdi.perc<-sim_res_AZ_LHSa$VEdi*100
+sim_res_AZ_LHSa$VEin.perc.obs<-sim_res_AZ_LHSa$`VE inf PCR IRR (first case)`*100
+sim_res_AZ_LHSa$VEasym.perc.obs<-sim_res_AZ_LHSa$`VE asym PCR IRR (first case) 2`*100
+sim_res_AZ_LHSa$FOI_yearly<-sim_res_AZ_LHSa$FOI*365*100
+sim_res_AZ_LHSa$asym.pcr.prob.per<-sim_res_AZ_LHSa$asym.pcr.prob*100
+sim_res_AZ_LHSa$pa.perc<-sim_res_AZ_LHSa$pa*100
+sim_res_AZ_LHSa$ps.perc<-1-sim_res_AZ_LHSa$pa.perc
+sim_res_AZ_LHSa$nat_immun_in.perc<-sim_res_AZ_LHSa$nat_immun_in*100
+sim_res_AZ_LHSa$nat_immun_pr.perc<-sim_res_AZ_LHSa$nat_immun_pr*100
+sim_res_AZ_LHSa$veinvepr<-sim_res_AZ_LHSa$VEdi.perc/sim_res_AZ_LHSa$VEin.perc
+```
+
+```{r rank regression}
+#inf
+mod_inf_rank<-rfit(data=sim_res_AZ_LHSa, VEin.perc.obs ~ VEin.perc +  FOI_yearly + ps.perc  + nat_immun_in.perc + nat_immun_pr.perc + pcr.specificity.perc + independent_sens + freq)
+summary(mod_inf_rank)
+inf_tab_rank<-as.data.frame(round(summary(mod_inf_rank)$coefficients, digits = 3))
+row.names(inf_tab_rank)<-c("Intercept", "VEin (%)", "Yearly hazard of infection (%)", "Proportion symptomatic (%)", "RR infection with prior infection (%)", "RR symptoms with prior infection (%)", "PCR test specificity (%)", "PCR test sensitivity to asymptomatic infection (%)", "Days between asymptomatic PCR tests")
+colnames(inf_tab_rank)<-c("Estimate", "Standard Error", "T value", "P value")
+kable(inf_tab_rank, caption = "VE infection")%>%
+  kable_classic()%>%
+  footnote("RR = relative risk")
+#asym
+mod_asym_rank<-rfit(data=sim_res_AZ_LHSa, VEasym.perc.obs ~ VEin.perc +  FOI_yearly + ps.perc  + nat_immun_in.perc + nat_immun_pr.perc + pcr.specificity.perc + independent_sens + freq)
+asym_tab_rank<-as.data.frame(round(summary(mod_asym_rank)$coefficients, digits = 3))
+summary(mod_asym_rank)
+row.names(asym_tab_rank)<-c("Intercept", "VEin (%)", "Yearly hazard of infection (%)", "Proportion symptomatic (%)", "RR infection with prior infection (%)", "RR symptoms with prior infection (%)", "PCR test specificity (%)", "PCR test sensitivity to asymptomatic infection (%)", "Days between asymptomatic PCR tests")
+colnames(asym_tab_rank)<-c("Estimate", "Standard Error", "T value", "P value")
+kable(asym_tab_rank, caption = "VE asymptomatic infection")%>%
+  kable_classic()%>%
+  footnote("RR = relative risk")
+```
+
+# 6. Save tables as excel files
+```{r save tables}
+#write.xlsx(asym_tab_rank, "asym_tab_rank_AZ.xlsx", asTable = TRUE, row.names = TRUE)
+#write.xlsx(inf_tab_rank, "inf_tab_rank_AZ.xlsx", asTable = TRUE, row.names = TRUE)
+```
+
+```{r end}
+# When you're done, clean up the cluster
+stopImplicitCluster()
+```
+
+
+

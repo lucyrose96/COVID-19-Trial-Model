@@ -1,0 +1,144 @@
+---
+title: "Trial Bias Estimates LHS, Janssen"
+output: html_document
+---
+
+#1. Setup
+
+In this file I perform latin hypercube sampling to explore the plausible parameter ranges for multiple parameters, to estimate 95% confidence intervals for VEin, VEasym, and VEpr that account for uncertainies in the degree and magnitude of bias, for the Janssen results. Here I make two assumptions, that the VEsym reported in the trial is accurate and that the serology test sensitivity to asymptomatic infections is </= symptomatic infections.
+
+```{r packages}
+library(ggplot2)
+library(grid)
+library(ggimage)
+library(RColorBrewer)
+library(foreach)
+library(doParallel)
+library(reshape2)
+library(metR)
+library(dplyr)
+library(akima)
+library(readr)
+library(lhs)
+```
+
+```{r setup for parallel processing}
+numCores <- detectCores()#number of cores that my computer has
+numCores
+registerDoParallel(numCores) # use multicore, set to the number of my cores
+```
+
+```{r LHS params}
+VEsym = 0.665
+params_LHS<-randomLHS(5000,10) #15000 simulations, 10 parameters with ranges
+ params_LHS[,1]<-qunif(params_LHS[,1], min = 0.3/365, max = 0.4/365) # baseline hazard of infection, Lam
+ params_LHS[,2]<-qunif(params_LHS[,2], min = 0.2, max = 0.5) # probability that an infection is asymptomatic, pa (1-ps)
+ params_LHS[,3]<-qunif(params_LHS[,3], min = 0.1, max = 0.2) # natural immunity against reinfection
+ params_LHS[,4]<-qunif(params_LHS[,4], min = 0.3, max = 0.4) # natural immunity against progression to symptoms
+ params_LHS[,5]<- qunif(params_LHS[,5], min =1-1/(1-params_LHS[,2]), max = VEsym)# VE progression min 1-(1/(1-pa)), max = VEsym (assuming VEin >=0)
+ params_LHS[,6]<- 1-(1-VEsym)/(1- params_LHS[,5])# VE infection when VEpr >=0 (to give assumed VEsym)
+ params_LHS[,7]<-qunif(params_LHS[,7], min =0.9911, max = 1) # Serology specificity
+ params_LHS[,8]<-qunif(params_LHS[,8], min =0.9, max = 0.99) # Serology sensitivity to symptomatic infections
+ params_LHS[,9]<-qunif(params_LHS[,9], min =0, max = 0.15)#relative sensitivity of asymptomatic infections, compared to symptomatic (absolute difference)
+ params_LHS[,10]<-params_LHS[,8]-params_LHS[,9]#serology sensitivity to asymptomatic infections
+ 
+params_LHS<-as.data.frame(params_LHS)
+colnames(params_LHS)<-c("FOI", "pa", "nat_immun_inf", "nat_immun_pr", "VEpr", "VEin", "s.specificity", "sens.sym", "relative.sens", "sens.asym")
+VEasym_vec<- 1-(params_LHS$pa*(1-params_LHS$VEin)+(1-params_LHS$pa)*(1-params_LHS$VEin)*params_LHS$VEpr)/params_LHS$pa
+range(VEasym_vec)#check within
+VEsym_vec<- 1-(1-params_LHS$VEin)*(1-params_LHS$VEpr)
+nrows=nrow(params_LHS)
+```
+
+# 2. Run simulations
+
+```{r run sims}
+#number of simulations (rows) and results (columns)
+ncols<-length(colnam)
+#Run model
+system.time(sim_res2<-foreach(i = 1:nrow(params_LHS), .combine=rbind, .packages = "rateratio.test")%dopar%{
+  model_run(Lam = params_LHS$FOI[i], pa= params_LHS$pa[i], ai.r=params_LHS$nat_immun_inf[i], si.r=params_LHS$nat_immun_inf[i], ai.w=params_LHS$nat_immun_inf[i], si.w=params_LHS$nat_immun_inf[i], as.r=params_LHS$nat_immun_pr[i], ss.r=params_LHS$nat_immun_pr[i], as.w=params_LHS$nat_immun_pr[i], ss.w=params_LHS$nat_immun_pr[i], VEin = params_LHS$VEin[i], VEdi = params_LHS$VEpr[i], s.specificity = params_LHS$s.specificity[i], p.antibod.asym = params_LHS$sens.asym[i], p.antibod.sym = params_LHS$sens.sym[i], timeintervals.end=c(29, 71), timeintervals.start=c(0, 29), n=2650)[[1]] #[[1]] gives results between day 29 and 71 (not cumulatively from day 0)
+})
+colnames(sim_res2)<-colnam
+rownames(sim_res2)<-c()
+beep()
+#separate the results to the time intervals
+sim_res_JJ_LHSc<-as.data.frame(sim_res2[seq(2,nrow(sim_res2),2),])#day 29 to 71 results
+#add parameter value columns
+sim_res_JJ_LHSc<-cbind(params_LHS$FOI, params_LHS$pa, params_LHS$nat_immun_inf, params_LHS$nat_immun_pr, params_LHS$VEin, params_LHS$VEpr, params_LHS$s.specificity, params_LHS$sens.sym, params_LHS$sens.asym, sim_res_JJ_LHSc)
+#add column names
+colnames(sim_res_JJ_LHSc)<-c("FOI", "pa", "nat_immun_inf", "nat_immun_pr", "VEin", "VEdi", "s.specificity", "sens.sym", "sens.asym", colnam)
+#add VE columns
+sim_res_JJ_LHSc$VEsym<-VEsym
+sim_res_JJ_LHSc$VEasym<- 1-(sim_res_JJ_LHSc$pa*(1-sim_res_JJ_LHSc$VEin)+(1-sim_res_JJ_LHSc$pa)*(1-sim_res_JJ_LHSc$VEin)*sim_res_JJ_LHSc$VEdi)/sim_res_JJ_LHSc$pa
+beep()
+```
+
+# 3. Save data
+
+```{r write data JJ}
+#write.csv(sim_res_JJ_LHSc, "sim_res_JJ_LHSc.csv", row.names = FALSE)
+#sim_res_JJ_LHS <- read_csv("sim_res_JJ_LHS.csv")
+```
+
+# 4. Subset to simulations with estimates within the reported 95% CIs
+
+```{r combined dataset}
+sim_res_JJ_LHS_VEc<-sim_res_JJ_LHSc[which(sim_res_JJ_LHSc$`VE sym IRR s-ve (first case) 2` >= 0.555 & sim_res_JJ_LHSc$`VE sym IRR s-ve (first case) 2` <= 0.751 & sim_res_JJ_LHSc$`VE asymp. serocon` >= 0.399 & sim_res_JJ_LHSc$`VE asymp. serocon` <= 0.811 ),]
+summary_VE_JJc<-sim_res_JJ_LHS_VEc %>%
+  summarise(
+    inf_med=median(VEin),
+    inf_uci=quantile(VEin, 0.975),
+    inf_lci=quantile(VEin, 0.025),
+    asym_med=median(VEasym),
+    asym_uci=quantile(VEasym, 0.975),
+    asym_lci=quantile(VEasym, 0.025),
+    pr_median=median(VEdi),
+    pr_uci=quantile(VEdi, 0.975),
+    pr_lci=quantile(VEdi, 0.025)
+    
+    )
+summary_VE_JJc
+```
+
+# 5. Regression
+
+```{r variables}
+sim_res_JJ_LHSc$s.specificity.perc<-sim_res_JJ_LHSc$s.specificity*100
+sim_res_JJ_LHSc$VEin.perc<-sim_res_JJ_LHSc$VEin*100
+sim_res_JJ_LHSc$VEdi.perc<-sim_res_JJ_LHSc$VEdi*100
+sim_res_JJ_LHSc$sens.asym.perc<-sim_res_JJ_LHSc$sens.asym*100
+sim_res_JJ_LHSc$sens.sym.perc<-sim_res_JJ_LHSc$sens.sym*100
+sim_res_JJ_LHSc$nat_immun_inf.perc<-sim_res_JJ_LHSc$nat_immun_inf*100
+sim_res_JJ_LHSc$nat_immun_pr.perc<-sim_res_JJ_LHSc$nat_immun_pr*100
+sim_res_JJ_LHSc$FOI_yearly<-sim_res_JJ_LHSc$FOI*365*100
+
+sim_res_JJ_LHSc$pa.perc<-sim_res_JJ_LHSc$pa*100
+sim_res_JJ_LHSc$ps.perc<-1-sim_res_JJ_LHSc$pa.perc
+sim_res_JJ_LHSc$VEasym.perc.obs<-sim_res_JJ_LHSc$`VE asymp. serocon`*100
+
+sim_res_JJ_LHSc$nat_immun_inf.perc<-sim_res_JJ_LHSc$nat_immun_inf*100
+sim_res_JJ_LHSc$nat_immun_pr.perc<-sim_res_JJ_LHSc$nat_immun_pr*100
+
+sim_res_JJ_LHSc$veinvedi.ratio<-sim_res_JJ_LHSc$VEdi.perc/sim_res_JJ_LHSc$VEin.perc
+```
+
+```{r rank regression}
+mod_asym<-rfit(data=sim_res_JJ_LHSc, VEasym.perc.obs ~ VEin.perc + FOI_yearly + ps.perc + nat_immun_inf.perc + nat_immun_pr.perc + s.specificity.perc + sens.asym.perc + sens.sym.perc)
+summary(mod_asym)
+asym_tab <-as.data.frame(round(summary(mod_asym)$coefficients, digits = 3))
+row.names(asym_tab )<-c("Intercept", "VEin (%)", "Yearly hazard of infection (%)", "Proportion symptomatic (%)", "RR infection with prior infection (%)", "RR symptoms with prior infection (%)", "Serology test specificity (%)", "Serology test sensitivity (asymptomatic infections) (%)", "Serology test sensitivity (symptomatic infections) (%)")
+kable(asym_tab, caption = "VE asymptomatic infection")%>%
+  kable_classic()%>%
+  footnote("RR = relative risk")
+```
+
+# 6. Save tables as excel files
+```{r save table}
+#write.xlsx(asym_tab, "asym_tab_rank_JJ.xlsx", asTable = TRUE, row.names = TRUE)
+```
+
+```{r end}
+# When you're done, clean up the cluster
+stopImplicitCluster()
+```

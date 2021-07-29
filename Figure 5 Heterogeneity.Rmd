@@ -1,0 +1,602 @@
+---
+title: 'Figure 5: Heterogeneity'
+output: html_document
+---
+
+```{r packages}
+library(ggplot2)
+library(grid)
+library(ggimage)
+library(RColorBrewer)
+library(foreach)
+library(doParallel)
+```
+
+```{r setup for parallel processing}
+numCores <- detectCores()#number of cores that my computer has
+numCores
+registerDoParallel(numCores) # use multicore, set to the number of my cores
+```
+
+I run 4 separate simulations: 1) "het_de" = heterogeneity in pa and VEin (efficacy decreases with age), 2) "het_in" = heterogeneity in pa and VEin (efficacy increases with age), 3) "shet" = some heterogeneity (pa but not VEin), 4) "no het" = no heterogeneity. For each the average pa = 0.3 and the average VEin = 0.7. 
+
+```{r het_de}
+nsim=1000
+nrows<-nsim
+ncols<-length(colnam)
+simres<-as.data.frame(array(NA, dim = c(nrows, ncols)))
+colnames(simres)<-colnam
+system.time(sim_res2<-foreach(i = 1:nrow(simres), .combine=rbind, .packages = "rateratio.test")%dopar%{
+  model_run(pa=c(0.5,0.4,0.3,0.2,0.1), VEin = c(0.90,0.80,0.70,0.60,0.50), VEdi = c(0,0,0,0,0), prop.a = c(0.2,0.2,0.2,0.2,0.2), Lam = 0.2/365)[[2]]
+})
+colnames(sim_res2)<-colnam
+rownames(sim_res2)<-c()
+sim_res_m1_het_de<-as.data.frame(sim_res2[seq(1,nrow(sim_res2),5),])#month 1 results are the 1st, 6th, 11th etc rows
+sim_res_m2_het_de<-as.data.frame(sim_res2[seq(2,nrow(sim_res2),5),])# month 2                2nd, 7th,  etc
+sim_res_m6_het_de<-as.data.frame(sim_res2[seq(3,nrow(sim_res2),5),])
+sim_res_m12_het_de<-as.data.frame(sim_res2[seq(4,nrow(sim_res2),5),])
+sim_res_m24_het_de<-as.data.frame(sim_res2[seq(5,nrow(sim_res2),5),])
+beep()
+```
+
+```{r het_in}
+nsim=1000
+nrows<-nsim
+ncols<-length(colnam)
+simres<-as.data.frame(array(NA, dim = c(nrows, ncols)))
+colnames(simres)<-colnam
+system.time(sim_res2<-foreach(i = 1:nrow(simres), .combine=rbind, .packages = "rateratio.test")%dopar%{
+  model_run(pa=c(0.5,0.4,0.3,0.2,0.1), VEin = rev(c(0.90,0.80,0.70,0.60,0.50)), VEdi = c(0,0,0,0,0), prop.a = c(0.2,0.2,0.2,0.2,0.2), Lam = 0.2/365)[[2]]
+})
+colnames(sim_res2)<-colnam
+rownames(sim_res2)<-c()
+sim_res_m1_het_in<-as.data.frame(sim_res2[seq(1,nrow(sim_res2),5),])#month 1 results are the 1st, 6th, 11th etc rows
+sim_res_m2_het_in<-as.data.frame(sim_res2[seq(2,nrow(sim_res2),5),])# month 2                2nd, 7th,  etc
+sim_res_m6_het_in<-as.data.frame(sim_res2[seq(3,nrow(sim_res2),5),])
+sim_res_m12_het_in<-as.data.frame(sim_res2[seq(4,nrow(sim_res2),5),])
+sim_res_m24_het_in<-as.data.frame(sim_res2[seq(5,nrow(sim_res2),5),])
+beep()
+```
+
+```{r some het}
+nsim=1000
+nrows<-nsim
+ncols<-length(colnam)
+simres<-as.data.frame(array(NA, dim = c(nrows, ncols)))
+colnames(simres)<-colnam
+system.time(sim_res2<-foreach(i = 1:nrow(simres), .combine=rbind, .packages = "rateratio.test")%dopar%{
+  model_run(pa=c(0.5,0.4,0.3,0.2,0.1), VEin = c(0.7,0.7,0.7,0.7,0.7), VEdi = c(0,0,0,0,0), prop.a = c(0.2,0.2,0.2,0.2,0.2), Lam = 0.2/365)[[2]]
+})
+colnames(sim_res2)<-colnam
+rownames(sim_res2)<-c()
+sim_res_m1_shet<-as.data.frame(sim_res2[seq(1,nrow(sim_res2),5),])#month 1 results are the 1st, 6th, 11th etc rows
+sim_res_m2_shet<-as.data.frame(sim_res2[seq(2,nrow(sim_res2),5),])# month 2                2nd, 7th,  etc
+sim_res_m6_shet<-as.data.frame(sim_res2[seq(3,nrow(sim_res2),5),])
+sim_res_m12_shet<-as.data.frame(sim_res2[seq(4,nrow(sim_res2),5),])
+sim_res_m24_shet<-as.data.frame(sim_res2[seq(5,nrow(sim_res2),5),])
+
+beep()
+```
+
+```{r no het}
+nsim=1000
+nrows<-nsim
+ncols<-length(colnam)
+simres<-as.data.frame(array(NA, dim = c(nrows, ncols)))
+colnames(simres)<-colnam
+system.time(sim_res2<-foreach(i = 1:nrow(simres), .combine=rbind, .packages = "rateratio.test")%dopar%{
+  model_run(pa=0.3, VEin = 0.7, VEdi = 0, prop.a = 1, Lam = 0.2/365)[[2]]
+})
+colnames(sim_res2)<-colnam
+rownames(sim_res2)<-c()
+sim_res_m1_nohet<-as.data.frame(sim_res2[seq(1,nrow(sim_res2),5),])#month 1 results are the 1st, 6th, 11th etc rows
+sim_res_m2_nohet<-as.data.frame(sim_res2[seq(2,nrow(sim_res2),5),])# month 2                2nd, 7th,  etc
+sim_res_m6_nohet<-as.data.frame(sim_res2[seq(3,nrow(sim_res2),5),])
+sim_res_m12_nohet<-as.data.frame(sim_res2[seq(4,nrow(sim_res2),5),])
+sim_res_m24_nohet<-as.data.frame(sim_res2[seq(5,nrow(sim_res2),5),])
+beep()
+```
+
+
+```{r save data de}
+#write.csv(sim_res_m1_het_de, "sim_res_m1_het_de.csv", row.names = FALSE)
+#write.csv(sim_res_m2_het_de, "sim_res_m2_het_de.csv", row.names = FALSE)
+#write.csv(sim_res_m6_het_de, "sim_res_m6_het_de.csv", row.names = FALSE)
+#write.csv(sim_res_m12_het_de, "sim_res_m12_het_de.csv", row.names = FALSE)
+#write.csv(sim_res_m24_het_de, "sim_res_m24_het_de.csv", row.names = FALSE)
+```
+
+
+```{r save data in}
+#write.csv(sim_res_m1_het_in, "sim_res_m1_het_in.csv", row.names = FALSE)
+#write.csv(sim_res_m2_het_in, "sim_res_m2_het_in.csv", row.names = FALSE)
+#write.csv(sim_res_m6_het_in, "sim_res_m6_het_in.csv", row.names = FALSE)
+#write.csv(sim_res_m12_het_in, "sim_res_m12_het_in.csv", row.names = FALSE)
+#write.csv(sim_res_m24_het_in, "sim_res_m24_het_in.csv", row.names = FALSE)
+```
+
+```{r save data sh}
+#write.csv(sim_res_m1_shet, "sim_res_m1_shet.csv", row.names = FALSE)
+#write.csv(sim_res_m2_shet, "sim_res_m2_shet.csv", row.names = FALSE)
+#write.csv(sim_res_m6_shet, "sim_res_m6_shet.csv", row.names = FALSE)
+#write.csv(sim_res_m12_shet, "sim_res_m12_shet.csv", row.names = FALSE)
+#write.csv(sim_res_m24_shet, "sim_res_m24_shet.csv", row.names = FALSE)
+```
+
+```{r save data no}
+#write.csv(sim_res_m1_nohet, "sim_res_m1_nohet.csv", row.names = FALSE)
+#write.csv(sim_res_m2_nohet, "sim_res_m2_nohet.csv", row.names = FALSE)
+#write.csv(sim_res_m6_nohet, "sim_res_m6_nohet.csv", row.names = FALSE)
+#write.csv(sim_res_m12_nohet, "sim_res_m12_nohet.csv", row.names = FALSE)
+#write.csv(sim_res_m24_nohet, "sim_res_m24_nohet.csv", row.names = FALSE)
+```
+
+```{r summarise het_de}
+fighet_de_m1<-sim_res_m1_het_de %>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   lci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.025),
+   uci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.975),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   lci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.025),
+   uci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.975),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   lci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.025),
+   uci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.975),
+   mean_vein=mean(`VE inf IRR s-ve (first case)`),
+   lci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.025),
+   uci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.975)
+  )
+fighet_de_m2<-sim_res_m2_het_de %>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   lci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.025),
+   uci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.975),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   lci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.025),
+   uci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.975),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   lci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.025),
+   uci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.975),
+   mean_vein=mean(`VE inf IRR s-ve (first case)`),
+   lci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.025),
+   uci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.975)
+  )
+fighet_de_m6<-sim_res_m6_het_de %>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   lci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.025),
+   uci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.975),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   lci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.025),
+   uci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.975),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   lci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.025),
+   uci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.975),
+   mean_vein=mean(`VE inf IRR s-ve (first case)`),
+   lci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.025),
+   uci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.975)
+  )
+fighet_de_m12<-sim_res_m12_het_de %>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   lci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.025),
+   uci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.975),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   lci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.025),
+   uci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.975),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   lci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.025),
+   uci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.975),
+   mean_vein=mean(`VE inf IRR s-ve (first case)`),
+   lci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.025),
+   uci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.975)
+  )
+fighet_de_m24<-sim_res_m24_het_de %>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   lci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.025),
+   uci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.975),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   lci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.025),
+   uci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.975),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   lci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.025),
+   uci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.975),
+   mean_vein=mean(`VE inf IRR s-ve (first case)`),
+   lci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.025),
+   uci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.975)
+  )
+```
+
+```{r summarise het_in}
+fighet_in_m1<-sim_res_m1_het_in %>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   lci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.025),
+   uci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.975),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   lci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.025),
+   uci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.975),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   lci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.025),
+   uci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.975),
+   mean_vein=mean(`VE inf IRR s-ve (first case)`),
+   lci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.025),
+   uci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.975)
+  )
+fighet_in_m2<-sim_res_m2_het_in %>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   lci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.025),
+   uci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.975),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   lci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.025),
+   uci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.975),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   lci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.025),
+   uci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.975),
+   mean_vein=mean(`VE inf IRR s-ve (first case)`),
+   lci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.025),
+   uci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.975)
+  )
+fighet_in_m6<-sim_res_m6_het_in %>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   lci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.025),
+   uci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.975),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   lci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.025),
+   uci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.975),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   lci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.025),
+   uci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.975),
+   mean_vein=mean(`VE inf IRR s-ve (first case)`),
+   lci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.025),
+   uci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.975)
+  )
+fighet_in_m12<-sim_res_m12_het_in %>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   lci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.025),
+   uci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.975),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   lci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.025),
+   uci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.975),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   lci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.025),
+   uci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.975),
+   mean_vein=mean(`VE inf IRR s-ve (first case)`),
+   lci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.025),
+   uci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.975)
+  )
+fighet_in_m24<-sim_res_m24_het_in %>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   lci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.025),
+   uci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.975),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   lci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.025),
+   uci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.975),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   lci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.025),
+   uci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.975),
+   mean_vein=mean(`VE inf IRR s-ve (first case)`),
+   lci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.025),
+   uci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.975)
+  )
+```
+
+```{r summarise shet}
+figshet_m1<-sim_res_m1_shet %>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   lci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.025),
+   uci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.975),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   lci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.025),
+   uci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.975),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   lci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.025),
+   uci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.975),
+   mean_vein=mean(`VE inf IRR s-ve (first case)`),
+   lci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.025),
+   uci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.975)
+  )
+figshet_m2<-sim_res_m2_shet %>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   lci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.025),
+   uci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.975),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   lci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.025),
+   uci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.975),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   lci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.025),
+   uci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.975),
+   mean_vein=mean(`VE inf IRR s-ve (first case)`),
+   lci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.025),
+   uci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.975)
+  )
+figshet_m6<-sim_res_m6_shet %>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   lci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.025),
+   uci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.975),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   lci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.025),
+   uci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.975),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   lci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.025),
+   uci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.975),
+   mean_vein=mean(`VE inf IRR s-ve (first case)`),
+   lci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.025),
+   uci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.975)
+  )
+figshet_m12<-sim_res_m12_shet %>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   lci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.025),
+   uci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.975),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   lci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.025),
+   uci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.975),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   lci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.025),
+   uci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.975),
+   mean_vein=mean(`VE inf IRR s-ve (first case)`),
+   lci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.025),
+   uci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.975)
+  )
+figshet_m24<-sim_res_m24_shet %>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   lci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.025),
+   uci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.975),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   lci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.025),
+   uci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.975),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   lci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.025),
+   uci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.975),
+   mean_vein=mean(`VE inf IRR s-ve (first case)`),
+   lci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.025),
+   uci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.975)
+  )
+```
+
+```{r summarise no het}
+fignohet_m1<-sim_res_m1_nohet %>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   lci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.025),
+   uci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.975),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   lci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.025),
+   uci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.975),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   lci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.025),
+   uci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.975),
+   mean_vein=mean(`VE inf IRR s-ve (first case)`),
+   lci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.025),
+   uci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.975)
+  )
+fignohet_m2<-sim_res_m2_nohet %>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   lci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.025),
+   uci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.975),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   lci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.025),
+   uci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.975),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   lci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.025),
+   uci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.975),
+   mean_vein=mean(`VE inf IRR s-ve (first case)`),
+   lci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.025),
+   uci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.975)
+  )
+fignohet_m6<-sim_res_m6_nohet %>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   lci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.025),
+   uci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.975),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   lci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.025),
+   uci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.975),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   lci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.025),
+   uci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.975),
+   mean_vein=mean(`VE inf IRR s-ve (first case)`),
+   lci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.025),
+   uci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.975)
+  )
+fignohet_m12<-sim_res_m12_nohet %>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   lci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.025),
+   uci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.975),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   lci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.025),
+   uci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.975),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   lci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.025),
+   uci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.975),
+   mean_vein=mean(`VE inf IRR s-ve (first case)`),
+   lci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.025),
+   uci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.975)
+  )
+fignohet_m24<-sim_res_m24_nohet %>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   lci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.025),
+   uci_vesym2= quantile(`VE sym IRR s-ve (first case) 2`, 0.975),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   lci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.025),
+   uci_veasym= quantile(`VE asym IRR s-ve (first case)`, 0.975),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   lci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.025),
+   uci_veasym2= quantile(`VE asym IRR s-ve (first case) 2`, 0.975),
+   mean_vein=mean(`VE inf IRR s-ve (first case)`),
+   lci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.025),
+   uci_vein= quantile(`VE inf IRR s-ve (first case)`, 0.975)
+  )
+```
+
+```{r month column}
+#het_de
+fighet_de_m1$month = 1
+fighet_de_m2$month = 2
+fighet_de_m6$month = 6
+fighet_de_m12$month = 12
+fighet_de_m24$month = 24
+
+fig_het_de<-rbind(fighet_de_m1, fighet_de_m2,fighet_de_m6,fighet_de_m12,fighet_de_m24)
+
+#het_in
+fighet_in_m1$month = 1
+fighet_in_m2$month = 2
+fighet_in_m6$month = 6
+fighet_in_m12$month = 12
+fighet_in_m24$month = 24
+
+fig_het_in<-rbind(fighet_in_m1, fighet_in_m2,fighet_in_m6,fighet_in_m12,fighet_in_m24)
+
+#shet
+figshet_m1$month = 1
+figshet_m2$month = 2
+figshet_m6$month = 6
+figshet_m12$month = 12
+figshet_m24$month = 24
+
+fig_shet<-rbind(figshet_m1, figshet_m2,figshet_m6,figshet_m12,figshet_m24)
+
+#no het
+fignohet_m1$month = 1
+fignohet_m2$month = 2
+fignohet_m6$month = 6
+fignohet_m12$month = 12
+fignohet_m24$month = 24
+
+fig_nohet<-rbind(fignohet_m1, fignohet_m2,fignohet_m6,fignohet_m12,fignohet_m24)
+```
+
+```{r join datasets}
+fig_nohet$heterogeneity<-"pa = no, VEin = no"
+fig_shet$heterogeneity<-"pa = yes, VEin = no"
+fig_het_in$heterogeneity<-"pa = yes, VEin = yes (increasing)"
+fig_het_de$heterogeneity<-"pa = yes, VEin = yes (decreasing)"
+
+fig<-rbind(fig_het_in,fig_het_de, fig_nohet, fig_shet)
+```
+
+```{r format for plot}
+fig1<-fig2<-fig3<-fig4<-fig
+fig1$ve = "VE sym"
+fig3$ve = "VE asym"
+fig4$ve = "VE in"
+
+fig1$ve_val<-fig1$mean_vesym2
+fig3$ve_val<-fig3$mean_veasym2
+fig4$ve_val<-fig4$mean_vein
+
+fig1$lci_val<-fig1$lci_vesym2
+fig3$lci_val<-fig3$lci_veasym2
+fig4$lci_val<-fig4$lci_vein
+
+fig1$uci_val<-fig1$uci_vesym2
+fig3$uci_val<-fig3$uci_veasym2
+fig4$uci_val<-fig4$uci_vein
+
+fignew<-rbind(fig1, fig3, fig4)
+```
+
+```{r all models plot}
+ggplot(fignew[fignew$month ==12,], aes(x=heterogeneity, y = ve_val, group = ve, color = ve))+
+  geom_point(position = position_dodge(width=0.5), size =3)+
+  geom_errorbar(aes(ymin=lci_val, ymax=uci_val),position = position_dodge(width=0.5))+
+  theme_classic()+
+  theme(legend.position="bottom", legend.title = element_blank())+
+  geom_hline(yintercept = 0.7, linetype = "dotted", color = "gray50")+
+  labs(y="Observed VE", x="Heterogenity in VEin")+
+  annotate("text", x=0.56, y=0.705, label= "True VE", size=3.5, color = "gray50")
+```
+
+```{r paper plot}
+ggplot(fignew[fignew$month ==12 & fignew$heterogeneity !='pa = no, VEin = no',], aes(x=heterogeneity, y = ve_val, group = ve, color = ve))+
+  geom_point(position = position_dodge(width=0.5), size =3)+
+  geom_errorbar(aes(ymin=lci_val, ymax=uci_val),position = position_dodge(width=0.5), width = 0.1)+
+  coord_fixed(ylim = c(0.6,0.8), ratio = 12)+
+  theme_classic()+
+  theme(legend.position="bottom", legend.title = element_blank(), text = element_text(size=13), axis.text = element_text(size=12), legend.text = element_text(size=12))+
+  geom_hline(yintercept = 0.7, linetype = "longdash", color = "gray34")+
+  labs(y="Observed VE", x="Association between VEin and Age")+
+  scale_x_discrete(labels=c("pa = yes, VEin = no" = "None", "pa = yes, VEin = yes (increasing)" = "Positive", "pa = yes, VEin = yes (decreasing)" = "Negative"))+
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1))
+
+```
+
+```{r end}
+# When you're done, clean up the cluster
+stopImplicitCluster()
+```

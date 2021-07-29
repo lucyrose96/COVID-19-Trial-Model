@@ -1,0 +1,375 @@
+---
+title: 'Figure 2: VEsym'
+output: html_document
+---
+
+```{r packages}
+library(ggplot2)
+library(grid)
+library(ggimage)
+library(RColorBrewer)
+library(foreach)
+library(doParallel)
+```
+
+```{r setup for parallel processing}
+numCores <- detectCores()
+numCores
+registerDoParallel(numCores)
+```
+
+```{r run model}
+nsim=5
+FOI<-c(0.1,0.3,0.5)/365
+FOI_n<-length(FOI)
+pa_vec<-c(0.3,0.6)
+pa_num<-length(pa_vec)
+vesym=0.7
+vein=c(0,0.5,0.7)
+VEpr_vec=1-((1-vesym)/(1-vein))
+VEpr_num<-length(VEpr_vec)
+nrows<-nsim*FOI_n*pa_num*VEpr_num
+ncols<-length(colnam)
+
+simres<-as.data.frame(array(NA, dim = c(nrows, ncols)))
+colnames(simres)<-colnam
+simres$VEsym = 0.7
+simres$FOI<-rep(FOI, each =  nsim*pa_num*VEpr_num)
+simres$pa<-rep(rep(pa_vec, each =  nsim*VEpr_num), FOI_n)
+simres$VEpr<-rep(rep(rep(VEpr_vec, each =  nsim), FOI_n), pa_num)
+simres$VEin<- 1-(1-simres$VEsym)/(1-simres$VEpr)
+
+system.time(sim_res2<-foreach(i = 1:nrow(simres), .combine=rbind, .packages = "rateratio.test")%dopar%{
+  model_run(Lam = simres$FOI[i], pa = simres$pa[i], VEdi = simres$VEpr[i], VEin = simres$VEin[i], timeintervals.end=c(90,180,270,360,450,540,630, 720), timeintervals.start=c(0,90,180,270,360,450,540,630))[[2]]
+})
+beep()
+colnames(sim_res2)<-colnam
+rownames(sim_res2)<-c()
+#separate the results to the time intervals
+sim_res_m3_fig1_pa_vepr<-as.data.frame(sim_res2[seq(1,nrow(sim_res2),8),])#month 1 results are the 1st, 6th, 11th etc rows
+sim_res_m6_fig1_pa_vepr<-as.data.frame(sim_res2[seq(2,nrow(sim_res2),8),])# month 2                2nd, 7th,  etc
+sim_res_m9_fig1_pa_vepr<-as.data.frame(sim_res2[seq(3,nrow(sim_res2),8),])
+sim_res_m12_fig1_pa_vepr<-as.data.frame(sim_res2[seq(4,nrow(sim_res2),8),])
+sim_res_m15_fig1_pa_vepr<-as.data.frame(sim_res2[seq(5,nrow(sim_res2),8),])
+sim_res_m18_fig1_pa_vepr<-as.data.frame(sim_res2[seq(6,nrow(sim_res2),8),])
+sim_res_m21_fig1_pa_vepr<-as.data.frame(sim_res2[seq(7,nrow(sim_res2),8),])
+sim_res_m24_fig1_pa_vepr<-as.data.frame(sim_res2[seq(8,nrow(sim_res2),8),])
+
+sim_res_m3_fig1_pa_vepr<-cbind(simres$FOI, simres$pa, simres$VEpr, simres$VEin, sim_res_m3_fig1_pa_vepr)
+sim_res_m6_fig1_pa_vepr<-cbind(simres$FOI, simres$pa, simres$VEpr, simres$VEin, sim_res_m6_fig1_pa_vepr)
+sim_res_m9_fig1_pa_vepr<-cbind(simres$FOI, simres$pa, simres$VEpr, simres$VEin, sim_res_m9_fig1_pa_vepr)
+sim_res_m12_fig1_pa_vepr<-cbind(simres$FOI, simres$pa, simres$VEpr, simres$VEin, sim_res_m12_fig1_pa_vepr)
+sim_res_m15_fig1_pa_vepr<-cbind(simres$FOI, simres$pa, simres$VEpr, simres$VEin, sim_res_m15_fig1_pa_vepr)
+sim_res_m18_fig1_pa_vepr<-cbind(simres$FOI, simres$pa, simres$VEpr, simres$VEin, sim_res_m18_fig1_pa_vepr)
+sim_res_m21_fig1_pa_vepr<-cbind(simres$FOI, simres$pa, simres$VEpr, simres$VEin, sim_res_m21_fig1_pa_vepr)
+sim_res_m24_fig1_pa_vepr<-cbind(simres$FOI, simres$pa, simres$VEpr, simres$VEin, sim_res_m24_fig1_pa_vepr)
+
+colnames(sim_res_m3_fig1_pa_vepr)<-c( "FOI", "pa", "VEpr", "VEin",colnam)
+colnames(sim_res_m6_fig1_pa_vepr)<-c( "FOI", "pa", "VEpr", "VEin", colnam)
+colnames(sim_res_m9_fig1_pa_vepr)<-c( "FOI", "pa", "VEpr", "VEin", colnam)
+colnames(sim_res_m12_fig1_pa_vepr)<-c( "FOI", "pa", "VEpr", "VEin", colnam)
+colnames(sim_res_m15_fig1_pa_vepr)<-c( "FOI", "pa", "VEpr", "VEin", colnam)
+colnames(sim_res_m18_fig1_pa_vepr)<-c( "FOI", "pa", "VEpr", "VEin", colnam)
+colnames(sim_res_m21_fig1_pa_vepr)<-c( "FOI", "pa", "VEpr", "VEin", colnam)
+colnames(sim_res_m24_fig1_pa_vepr)<-c( "FOI", "pa", "VEpr", "VEin", colnam)
+sim_res_m3_fig1_pa_vepr$FOI2<-sim_res_m6_fig1_pa_vepr$FOI2<-sim_res_m9_fig1_pa_vepr$FOI2<-sim_res_m12_fig1_pa_vepr$FOI2<-sim_res_m15_fig1_pa_vepr$FOI2<-sim_res_m18_fig1_pa_vepr$FOI2<-sim_res_m21_fig1_pa_vepr$FOI2<-sim_res_m24_fig1_pa_vepr$FOI2<-sim_res_m24_fig1_pa_vepr$FOI*365
+beep()
+```
+
+```{r save data}
+#write.csv(sim_res_m3_fig1_pa_vepr, "sim_res_m3_fig1_pa_vepr1000.csv", row.names = FALSE)
+#write.csv(sim_res_m6_fig1_pa_vepr, "sim_res_m6_fig1_pa_vepr1000.csv", row.names = FALSE)
+#write.csv(sim_res_m9_fig1_pa_vepr, "sim_res_m9_fig1_pa_vepr1000.csv", row.names = FALSE)
+#write.csv(sim_res_m12_fig1_pa_vepr, "sim_res_m12_fig1_pa_vepr1000.csv", row.names = FALSE)
+#write.csv(sim_res_m15_fig1_pa_vepr, "sim_res_m15_fig1_pa_vepr1000.csv", row.names = FALSE)
+#write.csv(sim_res_m18_fig1_pa_vepr, "sim_res_m18_fig1_pa_vepr1000.csv", row.names = FALSE)
+#write.csv(sim_res_m21_fig1_pa_vepr, "sim_res_m21_fig1_pa_vepr1000.csv", row.names = FALSE)
+#write.csv(sim_res_m24_fig1_pa_vepr, "sim_res_m24_fig1_pa_vepr1000.csv", row.names = FALSE)
+```
+
+
+```{r summarise}
+fig1_m3<-sim_res_m3_fig1_pa_vepr %>%
+  group_by(FOI2, pa, VEpr)%>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   mean_vesymRR=mean(`VE sym RR s-ve`),
+   uci_vesymRR=quantile(`VE sym RR s-ve`, 0.975),
+   lci_vesymRR=quantile(`VE sym RR s-ve`, 0.025),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   mean_veasymRR=mean(`VE asym RR s-ve`)
+  )
+fig1_m6<-sim_res_m6_fig1_pa_vepr %>%
+  group_by(FOI2, pa, VEpr)%>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   mean_vesymRR=mean(`VE sym RR s-ve`),
+   uci_vesymRR=quantile(`VE sym RR s-ve`, 0.975),
+   lci_vesymRR=quantile(`VE sym RR s-ve`, 0.025),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   mean_veasymRR=mean(`VE asym RR s-ve`)
+  )
+fig1_m9<-sim_res_m9_fig1_pa_vepr %>%
+  group_by(FOI2, pa, VEpr)%>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   mean_vesymRR=mean(`VE sym RR s-ve`),
+   uci_vesymRR=quantile(`VE sym RR s-ve`, 0.975),
+   lci_vesymRR=quantile(`VE sym RR s-ve`, 0.025),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   mean_veasymRR=mean(`VE asym RR s-ve`)
+  )
+fig1_m12<-sim_res_m12_fig1_pa_vepr %>%
+  group_by(FOI2, pa, VEpr)%>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   mean_vesymRR=mean(`VE sym RR s-ve`),
+   uci_vesymRR=quantile(`VE sym RR s-ve`, 0.975),
+   lci_vesymRR=quantile(`VE sym RR s-ve`, 0.025),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   mean_veasymRR=mean(`VE asym RR s-ve`)
+  )
+fig1_m15<-sim_res_m15_fig1_pa_vepr %>%
+  group_by(FOI2, pa, VEpr)%>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   mean_vesymRR=mean(`VE sym RR s-ve`),
+   uci_vesymRR=quantile(`VE sym RR s-ve`, 0.975),
+   lci_vesymRR=quantile(`VE sym RR s-ve`, 0.025),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   mean_veasymRR=mean(`VE asym RR s-ve`)
+  )
+fig1_m18<-sim_res_m18_fig1_pa_vepr %>%
+  group_by(FOI2, pa, VEpr)%>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   mean_vesymRR=mean(`VE sym RR s-ve`),
+   uci_vesymRR=quantile(`VE sym RR s-ve`, 0.975),
+   lci_vesymRR=quantile(`VE sym RR s-ve`, 0.025),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   mean_veasymRR=mean(`VE asym RR s-ve`)
+  )
+fig1_m21<-sim_res_m21_fig1_pa_vepr %>%
+  group_by(FOI2, pa, VEpr)%>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   mean_vesymRR=mean(`VE sym RR s-ve`),
+   uci_vesymRR=quantile(`VE sym RR s-ve`, 0.975),
+   lci_vesymRR=quantile(`VE sym RR s-ve`, 0.025),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   mean_veasymRR=mean(`VE asym RR s-ve`)
+  )
+fig1_m24<-sim_res_m24_fig1_pa_vepr %>%
+  group_by(FOI2, pa, VEpr)%>%
+  summarise(
+   mean_vesym= mean(`VE sym IRR s-ve (first case)`),
+   uci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.975),
+   lci_vesym= quantile(`VE sym IRR s-ve (first case)`, 0.025),
+   mean_vesym2= mean(`VE sym IRR s-ve (first case) 2`),
+   mean_vesymRR=mean(`VE sym RR s-ve`),
+   uci_vesymRR=quantile(`VE sym RR s-ve`, 0.975),
+   lci_vesymRR=quantile(`VE sym RR s-ve`, 0.025),
+   mean_veasym= mean(`VE asym IRR s-ve (first case)`),
+   mean_veasym2= mean(`VE asym IRR s-ve (first case) 2`),
+   mean_veasymRR=mean(`VE asym RR s-ve`)
+  )
+```
+
+
+
+```{r add cols}
+#months
+fig1_m3$months<-rep(3,nrow(fig1_m3))
+fig1_m6$months<-rep(6,nrow(fig1_m6))
+fig1_m9$months<-rep(9,nrow(fig1_m9))
+fig1_m12$months<-rep(12,nrow(fig1_m12))
+fig1_m15$months<-rep(15,nrow(fig1_m15))
+fig1_m18$months<-rep(18,nrow(fig1_m18))
+fig1_m21$months<-rep(21,nrow(fig1_m21))
+fig1_m24$months<-rep(24,nrow(fig1_m24))
+#combine to 1 dataset
+fig<-rbind(fig1_m6,fig1_m12,fig1_m18,fig1_m24)
+fig$FOI2<-as.factor(fig$FOI2)
+fig$months<-as.factor(fig$months)
+fig$vein<- 1-(1-0.7)/(1-fig$VEpr)
+fig2<-filter(fig, vein == 0.7, pa == 0.3 | pa == 0.6)
+fig3<-filter(fig, vein == 0, pa == 0.3 | pa == 0.6)
+fig4<-filter(fig, vein == 0.5, pa == 0.3 | pa == 0.6)
+```
+
+*1-IRR*
+
+```{r IRR infection plot}
+#setup
+myblues<-brewer.pal(n = 9, name = "Blues")[c(4:9)]
+
+#plot
+ggplot(fig2, aes(x=months, y = mean_vesym*100 , group = FOI2, color = FOI2))+
+  geom_point(position = position_dodge(width=0.5), size =3)+
+  geom_errorbar(aes(ymin=lci_vesym*100, ymax=uci_vesym*100), position = position_dodge(width=0.5), width=0.3)+
+  scale_y_continuous(labels = function(x) paste0(x, "%"))+
+  theme_classic()+
+   coord_cartesian(y=c(57,77))+
+  geom_hline(yintercept = 70, color = "gray50", linetype = "dotted")+
+  labs(x="Time (months)", y = "Estimated VE symptomatic infection ", color = "Yearly force of infection")+
+  scale_color_manual(values = myblues)+
+  facet_wrap(~pa, ncol = 1)+
+  theme(strip.background = element_blank(),
+  strip.text.x = element_blank(),
+  legend.position="bottom",
+  text = element_text(size=12),
+  axis.text = element_text(size=12)
+  )
+```
+
+```{r IRR disease plot}
+#setup
+myreds<-brewer.pal(n = 9, name = "Reds")[c(4:9)]
+
+#plot
+ggplot(fig3, aes(x=months, y = mean_vesym*100 , group = FOI2, color = FOI2))+
+  geom_point(position = position_dodge(width=0.5), size =3)+
+  geom_errorbar(aes(ymin=lci_vesym*100, ymax=uci_vesym*100), position = position_dodge(width=0.5), width=0.3)+
+  scale_y_continuous(labels = function(x) paste0(x, "%"))+
+  theme_classic()+
+   coord_cartesian(y=c(57,77))+
+  geom_hline(yintercept = 70, color = "gray50", linetype = "dotted")+
+  labs(x="Time (months)", y = "Estimated VE symptomatic infection ", color = "Yearly force of infection")+
+  scale_color_manual(values = myreds)+
+  facet_wrap(~pa, ncol = 1)+
+  theme(strip.background = element_blank(),
+  strip.text.x = element_blank(),
+  legend.position="bottom",
+  text = element_text(size=12),
+  axis.text = element_text(size=12)
+  )
+```
+
+
+```{r IRR infection and disease plot}
+#setup
+myyellows<-brewer.pal(n = 9, name = "YlOrBr")[c(4:9)]
+
+#plot
+ggplot(fig4, aes(x=months, y = mean_vesym*100 , group = FOI2, color = FOI2))+
+  geom_point(position = position_dodge(width=0.5), size =3)+
+  geom_errorbar(aes(ymin=lci_vesym*100, ymax=uci_vesym*100), position = position_dodge(width=0.5), width=0.3)+
+  scale_y_continuous(labels = function(x) paste0(x, "%"))+
+  theme_classic()+
+   coord_cartesian(y=c(57,77))+
+  geom_hline(yintercept = 70, color = "gray50", linetype = "dotted")+
+  labs(x="Time (months)", y = "Estimated VE symptomatic infection ", color = "Yearly force of infection")+
+  scale_color_manual(values = myyellows)+
+  facet_wrap(~pa, ncol = 1)+
+  theme(strip.background = element_blank(),
+  strip.text.x = element_blank(),
+  legend.position="bottom",
+  text = element_text(size=12),
+  axis.text = element_text(size=12)
+  )
+```
+
+*1-CIR*
+
+```{r CIR infection plot}
+#setup
+myblues<-brewer.pal(n = 9, name = "Blues")[c(4:9)]
+
+#plot
+ggplot(fig2, aes(x=months, y = mean_vesymRR*100 , group = FOI2, color = FOI2))+
+  geom_point(position = position_dodge(width=0.5), size =3)+
+  geom_errorbar(aes(ymin=lci_vesymRR*100, ymax=uci_vesymRR*100), position = position_dodge(width=0.5), width=0.3)+
+  scale_y_continuous(labels = function(x) paste0(x, "%"))+
+  theme_classic()+
+   coord_cartesian(y=c(57,77))+
+  geom_hline(yintercept = 70, color = "gray50", linetype = "dotted")+
+  labs(x="Time (months)", y = "Estimated VE symptomatic infection ", color = "Yearly force of infection")+
+  scale_color_manual(values = myblues)+
+  facet_wrap(~pa, ncol = 1)+
+  theme(strip.background = element_blank(),
+  strip.text.x = element_blank(),
+  legend.position="bottom",
+  text = element_text(size=12),
+  axis.text = element_text(size=12)
+  )
+```
+
+```{r CIR disease plot}
+#setup
+myreds<-brewer.pal(n = 9, name = "Reds")[c(4:9)]
+
+#plot
+ggplot(fig3, aes(x=months, y = mean_vesymRR*100 , group = FOI2, color = FOI2))+
+  geom_point(position = position_dodge(width=0.5), size =3)+
+  geom_errorbar(aes(ymin=lci_vesymRR*100, ymax=uci_vesymRR*100), position = position_dodge(width=0.5), width=0.3)+
+  scale_y_continuous(labels = function(x) paste0(x, "%"))+
+  theme_classic()+
+   coord_cartesian(y=c(57,77))+
+  geom_hline(yintercept = 70, color = "gray50", linetype = "dotted")+
+  labs(x="Time (months)", y = "Estimated VE symptomatic infection ", color = "Yearly force of infection")+
+  scale_color_manual(values = myreds)+
+  facet_wrap(~pa, ncol = 1)+
+  theme(strip.background = element_blank(),
+  strip.text.x = element_blank(),
+  legend.position="bottom",
+  text = element_text(size=12),
+  axis.text = element_text(size=12)
+  )
+```
+
+
+```{r CIR infection and disease plot}
+#setup
+myyellows<-brewer.pal(n = 9, name = "YlOrBr")[c(4:9)]
+
+#plot
+ggplot(fig4, aes(x=months, y = mean_vesymRR*100 , group = FOI2, color = FOI2))+
+  geom_point(position = position_dodge(width=0.5), size =3)+
+  geom_errorbar(aes(ymin=lci_vesymRR*100, ymax=uci_vesymRR*100), position = position_dodge(width=0.5), width=0.3)+
+  scale_y_continuous(labels = function(x) paste0(x, "%"))+
+  theme_classic()+
+   coord_cartesian(y=c(57,77))+
+  geom_hline(yintercept = 70, color = "gray50", linetype = "dotted")+
+  labs(x="Time (months)", y = "Estimated VE symptomatic infection ", color = "Yearly force of infection")+
+  scale_color_manual(values = myyellows)+
+  facet_wrap(~pa, ncol = 1)+
+  theme(strip.background = element_blank(),
+  strip.text.x = element_blank(),
+  legend.position="bottom",
+  text = element_text(size=12),
+  axis.text = element_text(size=12)
+  )
+```
+
+```{r end}
+# When you're done, clean up the cluster
+stopImplicitCluster()
+```

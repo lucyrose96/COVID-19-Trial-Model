@@ -1,0 +1,181 @@
+---
+title: "Figure 4: Differential detection"
+output: html_document
+---
+
+```{r packages}
+library(ggplot2)
+library(grid)
+library(ggimage)
+library(RColorBrewer)
+library(foreach)
+library(doParallel)
+```
+
+```{r setup for parallel processing}
+numCores <- detectCores()#number of cores that my computer has
+numCores
+registerDoParallel(numCores) # use multicore, set to the number of my cores
+```
+
+```{r run sims}
+true_VEin<-0.5
+true_pa<-0.3
+nsim=2
+asym.p<-seq(0,1,0.2)
+asym.p_n<-length(asym.p)
+VEdi<- seq(0,1,0.2)
+VEdi_n<-length(VEdi)
+#number of simulations (rows) and results (columns)
+nrows<-nsim*asym.p_n*VEdi_n
+ncols<-length(colnam)
+#Create dataframe to run through
+simres<-as.data.frame(array(NA, dim = c(nrows, ncols)))
+colnames(simres)<-colnam
+simres$asym.p<-rep(asym.p, each =  nsim*VEdi_n)
+simres$VEdi<-rep(rep(VEdi, each =  nsim), asym.p_n)
+#Run model
+system.time(sim_res2<-foreach(i = 1:nrow(simres), .combine=rbind, .packages = "rateratio.test")%dopar%{
+  model_run(asym.pcr.prob = simres$asym.p[i], VEdi = simres$VEdi[i], pcr.specificity = 1, VEin = true_VEin, pa = true_pa, Lam = 0.05/365 )[[2]]
+})
+colnames(sim_res2)<-colnam
+rownames(sim_res2)<-c()
+#separate the results to the time intervals
+sim_res_m1_fig4<-as.data.frame(sim_res2[seq(1,nrow(sim_res2),5),])#month 1 results are the 1st, 6th, 11th etc rows
+sim_res_m2_fig4<-as.data.frame(sim_res2[seq(2,nrow(sim_res2),5),])# month 2                2nd, 7th,  etc
+sim_res_m6_fig4<-as.data.frame(sim_res2[seq(3,nrow(sim_res2),5),])
+sim_res_m12_fig4<-as.data.frame(sim_res2[seq(4,nrow(sim_res2),5),])
+sim_res_m24_fig4<-as.data.frame(sim_res2[seq(5,nrow(sim_res2),5),])
+#add parameter value columns
+sim_res_m1_fig4<-cbind(simres$asym.p, simres$VEdi, sim_res_m1_fig4)
+sim_res_m2_fig4<-cbind(simres$asym.p, simres$VEdi, sim_res_m2_fig4)
+sim_res_m6_fig4<-cbind(simres$asym.p, simres$VEdi, sim_res_m6_fig4)
+sim_res_m12_fig4<-cbind(simres$asym.p, simres$VEdi, sim_res_m12_fig4)
+sim_res_m24_fig4<-cbind(simres$asym.p, simres$VEdi, sim_res_m24_fig4)
+#add column names
+colnames(sim_res_m1_fig4)<-c( "asym.p", "VEdi", colnam)
+colnames(sim_res_m2_fig4)<-c( "asym.p", "VEdi", colnam)
+colnames(sim_res_m6_fig4)<-c( "asym.p", "VEdi", colnam)
+colnames(sim_res_m12_fig4)<-c( "asym.p", "VEdi", colnam)
+colnames(sim_res_m24_fig4)<-c( "asym.p", "VEdi", colnam)
+beep()
+```
+
+```{r save data}
+#write.csv(sim_res_m1_fig4, "sim_res_m1_fig4.csv", row.names = FALSE)
+#write.csv(sim_res_m2_fig4, "sim_res_m2_fig4.csv", row.names = FALSE)
+#write.csv(sim_res_m6_fig4, "sim_res_m6_fig4.csv", row.names = FALSE)
+#write.csv(sim_res_m12_fig4, "sim_res_m12_fig4.csv", row.names = FALSE)
+#write.csv(sim_res_m24_fig4, "sim_res_24_fig4.csv", row.names = FALSE)
+```
+
+```{r summarise}
+figure_dat_fig4_m1 <- sim_res_m1_fig4 %>%
+  group_by(asym.p, VEdi)%>%
+  summarise(
+   mean_VEinf.inc = mean(`VE inf IRR s-ve (first case)`),
+    lci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.025),
+    uci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.975),
+   mean_VEinf.inc.RR = mean(`VE inf RR s-ve`),
+    mean_VEinf_pcr = mean(`VE inf PCR IRR (first case)`),
+    lci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.025),
+    uci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.975),
+    mean_VEinf_pcr_RR = mean(`VE inf PCR 1-RR`),
+    lci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.025),
+    uci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.975)
+  )
+figure_dat_fig4_m2<- sim_res_m2_fig4%>%
+  group_by(asym.p, VEdi)%>%
+  summarise(
+    mean_VEinf.inc = mean(`VE inf IRR s-ve (first case)`),
+    lci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.025),
+    uci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.975),
+    mean_VEinf.inc.RR = mean(`VE inf RR s-ve`),
+    mean_VEinf_pcr = mean(`VE inf PCR IRR (first case)`),
+    lci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.025),
+    uci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.975),
+    mean_VEinf_pcr_RR = mean(`VE inf PCR 1-RR`),
+    lci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.025),
+    uci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.975)
+  )
+figure_dat_fig4_m6<- sim_res_m6_fig4%>%
+  group_by(asym.p, VEdi)%>%
+  summarise(
+    mean_VEinf.inc = mean(`VE inf IRR s-ve (first case)`),
+    lci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.025),
+    uci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.975),
+    mean_VEinf.inc.RR = mean(`VE inf RR s-ve`),
+    mean_VEinf_pcr = mean(`VE inf PCR IRR (first case)`),
+    lci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.025),
+    uci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.975),
+    mean_VEinf_pcr_RR = mean(`VE inf PCR 1-RR`),
+    lci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.025),
+    uci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.975)
+  )
+figure_dat_fig4_m12<- sim_res_m12_fig4%>%
+  group_by(asym.p, VEdi)%>%
+  summarise(
+    mean_VEinf.inc = mean(`VE inf IRR s-ve (first case)`),
+    lci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.025),
+    uci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.975),
+    mean_VEinf.inc.RR = mean(`VE inf RR s-ve`),
+    mean_VEinf_pcr = mean(`VE inf PCR IRR (first case)`),
+    lci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.025),
+    uci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.975),
+    mean_VEinf_pcr_RR = mean(`VE inf PCR 1-RR`),
+    lci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.025),
+    uci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.975)
+  )
+figure_dat_fig4_m24<- sim_res_m24_fig4%>%
+  group_by(asym.p, VEdi)%>%
+  summarise(
+    mean_VEinf.inc = mean(`VE inf IRR s-ve (first case)`),
+    lci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.025),
+    uci_VEinf.inc=quantile(`VE inf IRR s-ve (first case)`, 0.975),
+    mean_VEinf.inc.RR = mean(`VE inf RR s-ve`),
+    mean_VEinf_pcr = mean(`VE inf PCR IRR (first case)`),
+    lci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.025),
+    uci_VEinf_pcr=quantile(`VE inf PCR IRR (first case)`, 0.975),
+    mean_VEinf_pcr_RR = mean(`VE inf PCR 1-RR`),
+    lci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.025),
+    uci_VEinf_pcr_RR=quantile(`VE inf PCR 1-RR`, 0.975)
+  )
+
+```
+
+```{r equation}
+asym.p_eqn<-seq(0,1,0.001)
+asym.p_length=length(asym.p_eqn)
+data.eqn<-data.frame(pa=rep(true_pa, asym.p_length), VEin=rep(true_VEin, asym.p_length), VEdi = rep(VEdi, each = asym.p_length), asym.p = rep(asym.p_eqn, length(true_VEin)))
+data.eqn$eqn<- data.eqn$VEin + ((1-data.eqn$pa)*(1-data.eqn$asym.p)*(1-data.eqn$VEin)*(data.eqn$VEdi))/(1-data.eqn$pa*(1-data.eqn$asym.p))
+figure_dat_fig4_m6$eqn<- true_VEin + ((1-true_pa)*(1-figure_dat_fig4_m6$asym.p)*(1-true_VEin)*(figure_dat_fig4_m6$VEdi))/(1-true_pa*(1-figure_dat_fig4_m6$asym.p))
+figure_dat_fig4_m12$eqn<- true_VEin + ((1-true_pa)*(1-figure_dat_fig4_m12$asym.p)*(1-true_VEin)*(figure_dat_fig4_m12$VEdi))/(1-true_pa*(1-figure_dat_fig4_m12$asym.p))
+figure_dat_fig4_m24$eqn<- true_VEin + ((1-true_pa)*(1-figure_dat_fig4_m24$asym.p)*(1-true_VEin)*(figure_dat_fig4_m24$VEdi))/(1-true_pa*(1-figure_dat_fig4_m24$asym.p))
+```
+
+```{r plot}
+#setup
+mycolors2<-brewer.pal(8, "Reds")[3:8]
+#plot
+ggplot(figure_dat_fig4_m12, aes(x=asym.p, y=mean_VEinf_pcr, group = as.factor(VEdi), color = as.factor(VEdi)))+
+  geom_point(size=1.75)+
+  geom_errorbar(aes(ymin=lci_VEinf_pcr, ymax= uci_VEinf_pcr), width = 0.02)+
+  labs(x="Relative probability of asymptomatic infection detection", y= "Observed VE against infection")+
+  scale_color_manual(values= mycolors2, name = "VE progression", labels = c("0%","20%","40%","60%","80%","100%"))+
+  geom_hline(yintercept = 0.5, linetype = "dotted", color = "gray34")+
+  guides(color = guide_legend(reverse = TRUE))+ 
+  theme_classic()+
+  theme(legend.position="bottom", text = element_text(size=13), axis.text = element_text(size=12), legend.text = element_text(size=12))+
+  #annotate("text", x=0.04, y=0.515, label= "True VEin", size=3.5, color = "gray34")+ 
+  guides(colour = guide_legend(nrow = 1))+
+  scale_y_continuous(labels = scales::percent, breaks = seq(0.5,1,0.1))+
+  scale_x_continuous(labels = scales::percent_format(accuracy = 1), breaks = seq(0,1,0.1))+
+  coord_fixed(ratio = 1.3)+
+  #eqn
+  geom_line(data = data.eqn, aes(y=eqn))
+```
+
+```{r end}
+# When you're done, clean up the cluster
+stopImplicitCluster()
+```
