@@ -23,7 +23,6 @@ library(readr)
 numCores <- detectCores()#number of cores that my computer has
 numCores
 registerDoParallel(numCores) # use multicore, set to the number of my cores
-#note - must run end chunk when done
 ```
 
 # 2. Get correct FOI for the reported number of placebo group infections.
@@ -86,7 +85,7 @@ ggplot(sim_res_d149_AZ_FOI, aes(x=FOI*365, y= `Num. first PCR asym s-ve (placebo
   geom_vline(xintercept = 0.17)
 ```
 
--> AZ FOI = 0.2, best value for sym and asym. Slight underestimation for all infections but that's because their value included non-primary symptoms. 
+-> AZ FOI = 0.17, reasonable approximation for all outcomes. 
 
 # 3. Run model with best estimates for FOI
 
